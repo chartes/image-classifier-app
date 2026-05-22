@@ -61,6 +61,29 @@ Example:
     ]
   }
 }
+```
+
+Each model run should contain:
+
+```
+run/
+├── onnx/
+│   └── model.onnx
+├── preprocess.json
+└── inference_config.json
+```
+
+## Run locally
+
+From the repository root:
+
+```
+python -m http.server 8000
+```
+
+Then open: `http://localhost:8000`
+
+> Do not open index.html directly with file://, because browsers restrict local file access and CORS behavior.
 
 ## Citation
 
