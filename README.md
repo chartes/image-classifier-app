@@ -17,6 +17,7 @@ Test this app with a demo app on [![GitHub Pages](https://img.shields.io/badge/G
 - Reset the threshold to the model’s recommended value.
 - Filter results by positive, negative, pending, error, or manually corrected items.
 - Apply optional negative-label heuristics based on canvas labels.
+- Correct model's suggestions
 - Export the current filtered selection as a new IIIF Presentation API v3 manifest.
 - Run entirely in the browser with no backend server.
 
