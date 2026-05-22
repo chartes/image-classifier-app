@@ -2,7 +2,7 @@
 
 ![Vue.js](https://img.shields.io/badge/vuejs-%2335495e.svg?style=for-the-badge&logo=vuedotjs&logoColor=%234FC08D)
 
-A lightweight VueJS web application for running image classifiers on IIIF manifests or local images directly in the browser.
+A lightweight Vue.js web application for running image classifiers on IIIF manifests or local images directly in the browser.
 
 The application loads ONNX image-classification models, applies the corresponding preprocessing configuration, classifies IIIF canvases, and lets users export a filtered IIIF manifest containing the selected images and machine-generated annotations.
 
