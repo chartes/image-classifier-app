@@ -1,0 +1,3675 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Medieval Illumination Detector</title>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+    <script src="https://unpkg.com/mirador@latest/dist/mirador.min.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #fafafa;
+            color: #111;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        [v-cloak] {
+            display: none;
+        }
+
+        .app {
+            display: grid;
+            grid-template-columns: 370px 1fr;
+            min-height: 100vh;
+            height: 100vh;
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+            background: #fff;
+            border-right: 1px solid #e6e6e6;
+        }
+
+        .sidebar-header {
+            padding: 14px 16px 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .header-title-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .sidebar-header h1 {
+            min-width: 0;
+            margin: 0;
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+
+        .sidebar-header p {
+            margin: 8px 0 0;
+            color: #666;
+            font-size: 12px;
+        }
+
+        .header-info {
+            margin-top: 8px;
+        }
+
+        .header-info p {
+            margin: 0;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 12px 12px 20px;
+        }
+
+
+        .citation-card {
+            margin-top: 10px;
+            padding: 9px;
+            background: #fafafa;
+            border: 1px solid #eee;
+            border-left: 3px solid #111;
+            border-radius: 10px;
+            font-size: 12px;
+        }
+
+        .citation-card-title {
+            margin-bottom: 6px;
+            color: #111;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: .03em;
+            text-transform: uppercase;
+        }
+
+        .citation-card p {
+            margin: 0;
+            color: #555;
+        }
+
+        .citation-card code {
+            display: block;
+            margin-top: 8px;
+            padding: 8px;
+            overflow-x: auto;
+            background: #fafafa;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            color: #333;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+            font-size: 11px;
+            white-space: pre-wrap;
+        }
+
+        .citation-card a {
+            color: #111;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .citation-card a:hover {
+            text-decoration: underline;
+        }
+
+        .form-label {
+            display: block;
+            margin: 11px 0 6px;
+            color: #777;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .03em;
+            text-transform: uppercase;
+        }
+
+        .field,
+        .select {
+            width: 100%;
+            padding: 7px 9px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 7px;
+            outline: none;
+            font-size: 13px;
+        }
+
+        textarea.field {
+            resize: vertical;
+            min-height: 70px;
+            font-family: inherit;
+        }
+
+        .field:focus,
+        .select:focus {
+            border-color: #111;
+        }
+
+        .row {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .row-spread {
+            justify-content: space-between;
+        }
+
+        .flex-1 {
+            flex: 1 1 auto;
+        }
+
+        .mt-8 {
+            margin-top: 8px;
+        }
+
+        .mt-10 {
+            margin-top: 10px;
+        }
+
+        .small {
+            color: #666;
+            font-size: 12px;
+        }
+
+        .button {
+            padding: 7px 10px;
+            background: #fff;
+            color: #222;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 700;
+            transition: .15s;
+        }
+
+        .button:hover:not(:disabled) {
+            background: #f5f5f5;
+            border-color: #999;
+        }
+
+        .button:disabled {
+            cursor: not-allowed;
+            opacity: .45;
+        }
+
+        .button-primary {
+            background: #111;
+            border-color: #111;
+            color: #fff;
+        }
+
+        .button-primary:hover:not(:disabled) {
+            background: #222;
+            border-color: #222;
+        }
+
+        .button-danger {
+            color: #b00;
+            border-color: #b00;
+        }
+
+        .button-danger:hover:not(:disabled) {
+            background: #fff3f3;
+        }
+
+        .button-link {
+            border: 0;
+            padding: 0;
+            background: transparent;
+            color: #111;
+            text-decoration: underline;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-left: 3px solid #ddd;
+            border-radius: 6px;
+            background: #fafafa;
+            color: #555;
+            font-size: 12px;
+            word-break: break-word;
+        }
+
+        .status.loading {
+            border-left-color: #f0ad4e;
+            background: #fffcf5;
+        }
+
+        .status.error {
+            border-left-color: #b00;
+            background: #fff7f7;
+            color: #800;
+        }
+
+        .status.success {
+            border-left-color: #1a7f37;
+            background: #f5fff8;
+            color: #135d2a;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .tab {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 999px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .tab.active {
+            background: #111;
+            border-color: #111;
+            color: #fff;
+        }
+
+        .tab-logo {
+            width: 18px;
+            height: 18px;
+            object-fit: contain;
+        }
+
+        .controls {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+        }
+
+        .slider {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 8px 0 4px;
+        }
+
+        .slider-input {
+            width: 100%;
+            accent-color: #111;
+        }
+
+        .slider-value {
+            min-width: 44px;
+            text-align: right;
+            font-weight: 800;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 999px;
+            font-size: 12px;
+        }
+
+        .pill-label {
+            all: unset;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .collapsible {
+            margin-top: 10px;
+            border: 1px solid #eee;
+            border-radius: 12px;
+            background: #fafafa;
+            overflow: hidden;
+        }
+
+        .collapsible-header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            padding: 9px 10px;
+            background: #fafafa;
+            border: 0;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 800;
+            text-align: left;
+        }
+
+        .collapsible-body {
+            padding: 0 10px 10px;
+            border-top: 1px solid #eee;
+        }
+
+        .progress {
+            display: none;
+            margin: 10px 0 8px;
+        }
+
+        .progress.visible {
+            display: block;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            overflow: hidden;
+            background: #eee;
+            border-radius: 999px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: #111;
+            transition: width .15s ease;
+        }
+
+        .progress-text {
+            margin-top: 4px;
+            color: #777;
+            font-size: 11px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .repo-card,
+        .project-card,
+        .help-box {
+            margin-top: 12px;
+            padding: 10px;
+            background: #fafafa;
+            border: 1px solid #eee;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+
+        .repo-card a,
+        .project-card a {
+            color: #111;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .project-card {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .project-logo {
+            width: 76px;
+            height: 76px;
+            padding: 4px;
+            background: #fff;
+            border: 1px solid #eee;
+            border-radius: 10px;
+            object-fit: contain;
+        }
+
+        .project-logo-fallback {
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 44px;
+            height: 44px;
+            background: #111;
+            color: #fff;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .dropzone {
+            margin-top: 8px;
+            padding: 18px 14px;
+            background: #fafafa;
+            border: 1.5px dashed #ccc;
+            border-radius: 14px;
+            text-align: center;
+            transition: .15s;
+        }
+
+        .dropzone.dragover {
+            background: #f1f1f1;
+            border-color: #111;
+        }
+
+        .file-picker {
+            margin-top: 10px;
+        }
+
+        .file-input {
+            width: 100%;
+            font-size: 12px;
+        }
+
+        .viewer {
+            position: relative;
+            display: grid;
+            grid-template-rows: auto 1fr;
+            height: 100%;
+            min-height: 0;
+            overflow: hidden;
+            background: #111;
+        }
+
+        .mirador-shell {
+            background: #111;
+            border-bottom: 1px solid #222;
+        }
+
+        .mirador-topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 8px 10px;
+            color: #eee;
+            font-size: 12px;
+        }
+
+        .mirador-topbar-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .mirador-title {
+            max-width: 56vw;
+            overflow: hidden;
+            font-weight: 700;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .mirador-button {
+            background: transparent;
+            border-color: #444;
+            color: #eee;
+        }
+
+        .mirador-button:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: #666;
+        }
+
+        .mirador-wrap {
+            height: 52vh;
+        }
+
+        .mirador-wrap.collapsed {
+            height: 0;
+            overflow: hidden;
+        }
+
+        #mirador {
+            position: relative !important;
+            width: 100%;
+            height: 100%;
+            overflow: hidden !important;
+            background: #111;
+        }
+
+        #mirador .mirador-viewer {
+            position: absolute !important;
+            inset: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        #mirador .MuiDialog-root,
+        #mirador .MuiPopover-root,
+        #mirador .MuiModal-root,
+        #mirador .MuiBackdrop-root {
+            position: absolute !important;
+        }
+
+        #mirador .MuiPaper-root {
+            max-height: 100% !important;
+        }
+
+        .workspace {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+            background: #fafafa;
+        }
+
+        .workspace-header {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 10px 12px;
+            background: #fff;
+            border-bottom: 1px solid #eaeaea;
+        }
+
+        .facet-select {
+            min-width: 220px;
+        }
+
+        .workspace-content {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 0;
+            overflow: hidden;
+            padding: 10px;
+        }
+
+        .hist {
+            flex: 0 0 auto;
+            padding: 10px;
+            background: #fff;
+            border: 1px solid #eee;
+            border-radius: 12px;
+        }
+
+        .hist-title {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .hist-title b {
+            font-size: 12px;
+        }
+
+        .hist-title span {
+            color: #666;
+            font-size: 11px;
+        }
+
+        .sparkline {
+            display: flex;
+            align-items: flex-end;
+            gap: 2px;
+            height: 40px;
+        }
+
+        .sparkbar {
+            flex: 1 1 0;
+            min-width: 0;
+            height: 8%;
+            background: #ddd;
+            border-radius: 2px 2px 0 0;
+            cursor: pointer;
+            transition: opacity .12s;
+        }
+
+        .sparkbar:hover {
+            opacity: .75;
+        }
+
+        .sparkbar.sel {
+            background: #111;
+        }
+
+        .sparkbar.ok {
+            background: #1a7f37;
+        }
+
+        .sparkbar.no {
+            background: #bbb;
+        }
+
+        .list-wrap {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: auto;
+            border-radius: 12px;
+        }
+
+        .list {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            list-style: none;
+            background: #fff;
+            border: 1px solid #eee;
+            border-radius: 12px;
+        }
+
+        .item {
+            display: grid;
+            grid-template-columns: 54px 1fr auto;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            border-bottom: 1px solid #f4f4f4;
+            cursor: pointer;
+            transition: background .1s;
+        }
+
+        .item:last-child {
+            border-bottom: none;
+        }
+
+        .item:hover {
+            background: #f8f8f8;
+        }
+
+        .item.active {
+            background: #eef6ff;
+        }
+
+        .thumb {
+            width: 54px;
+            height: 54px;
+            background: #eee;
+            border-radius: 10px;
+            object-fit: cover;
+        }
+
+        .meta {
+            min-width: 0;
+        }
+
+        .meta1 {
+            margin: 0;
+            overflow: hidden;
+            color: #111;
+            font-size: 13px;
+            font-weight: 800;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .meta2 {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 2px 0 0;
+            color: #777;
+            font-size: 11px;
+        }
+
+        .conf {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            min-width: 170px;
+            color: #555;
+            font-size: 12px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .bar {
+            width: 64px;
+            height: 6px;
+            overflow: hidden;
+            background: #eee;
+            border-radius: 999px;
+        }
+
+        .fill {
+            height: 100%;
+            width: 0%;
+            background: #bbb;
+            transition: width .15s;
+        }
+
+        .fill.ok {
+            background: #1a7f37;
+        }
+
+        .editbox {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .checkbox-label {
+            all: unset;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .button-compact {
+            padding: 5px 8px;
+            border-radius: 8px;
+        }
+
+        .image-right {
+            height: 100%;
+            overflow: auto;
+            padding: 14px;
+            background: #fafafa;
+        }
+
+        .image-card {
+            padding: 12px;
+            background: #fff;
+            border: 1px solid #eee;
+            border-radius: 14px;
+        }
+
+        .image-card-title {
+            font-weight: 800;
+        }
+
+        .image-grid {
+            display: grid;
+            grid-template-columns: minmax(240px, 1fr) minmax(220px, 320px);
+            align-items: start;
+            gap: 12px;
+        }
+
+        .img-big {
+            width: 100%;
+            background: #f0f0f0;
+            border: 1px solid #eee;
+            border-radius: 12px;
+        }
+
+        .prob-box {
+            padding: 10px;
+            background: #fff;
+            border: 1px solid #eee;
+            border-radius: 12px;
+        }
+
+        .hbar-row {
+            display: grid;
+            grid-template-columns: 1fr 120px 44px;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 0;
+            border-bottom: 1px dashed #eee;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .hbar-row:last-child {
+            border-bottom: none;
+        }
+
+        .hbar-label {
+            overflow: hidden;
+            color: #222;
+            font-size: 12px;
+            font-weight: 800;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .hbar {
+            height: 10px;
+            overflow: hidden;
+            background: #eee;
+            border-radius: 999px;
+        }
+
+        .hbar-fill {
+            height: 100%;
+            width: 0%;
+            background: #111;
+            transition: width .15s;
+        }
+
+        .hbar-val {
+            color: #333;
+            font-size: 12px;
+            font-weight: 800;
+            text-align: right;
+        }
+
+        .output {
+            margin-top: 12px;
+            white-space: pre-wrap;
+            font-size: 12px;
+            background: #fafafa;
+            border: 1px solid #eee;
+            padding: 10px;
+            border-radius: 10px;
+        }
+
+        @media (max-width: 900px) {
+            .app {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 1fr;
+            }
+
+            .sidebar {
+                max-height: 55vh;
+            }
+
+            .mirador-title {
+                max-width: 80vw;
+            }
+
+            .image-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+<div id="app" class="app" v-cloak>
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="header-title-row">
+                <h1>{{ appConfig.ui.title }}</h1>
+                <button class="button" type="button" @click="headerDescriptionOpen = !headerDescriptionOpen">
+                    {{ headerDescriptionOpen ? t("hideInfo") : t("showInfo") }}
+                    <span>{{ headerDescriptionOpen ? "▴" : "▾" }}</span>
+                </button>
+            </div>
+            <div v-show="headerDescriptionOpen" class="header-info">
+                <p>{{ appConfig.ui.description }}</p>
+                <div class="citation-card" v-if="appConfig.citation?.show">
+                    <div class="citation-card-title">
+                        {{ appConfig.citation.title || t("citationTitle") }}
+                    </div>
+                    <p>
+                        {{ appConfig.citation.text || t("citationText") }}
+                        <template v-if="appConfig.citation.url">
+                            <br>
+                            <a :href="appConfig.citation.url" target="_blank" rel="noopener">
+                                {{ appConfig.citation.linkLabel || t("citationLinkLabel") }}
+                            </a>
+                        </template>
+                    </p>
+                    <code v-if="appConfig.citation.short">{{ appConfig.citation.short }}</code>
+                </div>
+            </div>
+                </div>
+
+        <div class="sidebar-content">
+
+<div class="sidebar-content">
+    <div v-if="appConfig.ui.showArtefactsInput">
+        <label class="form-label">{{ t("artefactsLabel") }}</label>
+        <input class="field" type="text" v-model="artefactsBaseUrl" :placeholder="t('artefactsPlaceholder')"/>
+        <div class="small mt-8">{{ t("artefactsHelp") }}</div>
+    </div>
+
+    <div class="repo-card" v-if="appConfig.mode === 'online' && HF_REPO_URL">
+        🤗 <a :href="HF_REPO_URL" target="_blank" rel="noopener">{{ HF_REPO_LABEL }}</a>
+    </div>
+
+    <label class="form-label">{{ t("runsLabel") }}</label>
+    <div class="row">
+        <select class="select flex-1" v-model="selectedRun">
+            <option v-for="run in runOptions" :key="run.id" :value="run.id">
+                {{ run.label || run.id }}
+            </option>
+        </select>
+        <button class="button" @click="refreshRuns" :title="t('refreshRuns')">↻</button>
+    </div>
+
+    <div class="row mt-8">
+        <button class="button button-primary" @click="loadRun" :disabled="!selectedRun || isBusy">
+            {{ t("loadModel") }}
+        </button>
+        <button class="button" @click="clearAll" :disabled="isBusy">
+            {{ t("reset") }}
+        </button>
+    </div>
+
+    <div class="status" :class="statusType" v-if="statusMsg">{{ statusMsg }}</div>
+
+    <div class="tabs" role="tablist" :aria-label="t('tabsAriaLabel')">
+        <button class="tab" :class="{active: tab === 'iiif'}" type="button" @click="tab = 'iiif'">
+            <img class="tab-logo" :src="IIIF_LOGO_URL" alt="IIIF"> {{ t("iiifTab") }}
+        </button>
+        <button class="tab" :class="{active: tab === 'image'}" type="button" @click="tab = 'image'">
+            🖼️ {{ t("imageTab") }}
+        </button>
+    </div>
+
+    <section v-if="tab === 'iiif'" class="controls">
+        <label class="form-label">{{ t("manifestUrlLabel") }}</label>
+        <input class="field" type="url" v-model="manifestUrl" :placeholder="t('manifestUrlPlaceholder')"/>
+
+        <div class="row mt-8">
+            <button class="button button-primary" @click="loadManifest"
+                    :disabled="!modelReady || !manifestUrl || isBusy">
+                {{ t("loadManifest") }}
+            </button>
+            <button class="button button-primary" @click="classifyAll"
+                    :disabled="!modelReady || canvases.length === 0 || isBusy || isRunning">
+                {{ t("classify") }}
+            </button>
+            <button class="button button-danger" @click="stop" :disabled="!isRunning">
+                {{ t("stop") }}
+            </button>
+        </div>
+
+        <label class="form-label">{{ t("thresholdLabel") }}</label>
+
+        <div class="slider">
+            <input
+                    class="slider-input"
+                    type="range"
+                    min="0"
+                    max="100"
+                    v-model.number="thresholdPct"
+                    @input="applySelection(true, 'filter')"
+            />
+            <div class="slider-value">{{ thresholdPct }}%</div>
+        </div>
+
+        <div class="row row-spread mt-8">
+            <div class="small">
+                {{ t("optimalThresholdLabel") }}: <strong>{{ optimalThresholdPct }}%</strong>
+            </div>
+
+            <button
+                    class="button"
+                    type="button"
+                    @click="resetThresholdToOptimal"
+                    :disabled="!modelReady || thresholdPct === optimalThresholdPct"
+            >
+                {{ t("resetOptimalThreshold") }}
+            </button>
+        </div>
+
+        <label class="form-label">{{ t("parallelLabel") }}</label>
+        <div class="slider">
+            <input class="slider-input" type="range" min="1" max="20" step="1"
+                   v-model.number="classificationConcurrency" :disabled="isRunning"/>
+            <div class="slider-value">{{ classificationConcurrency }}</div>
+        </div>
+        <div class="small">{{ t("parallelHelp") }}</div>
+
+        <div class="collapsible">
+            <button class="collapsible-header" type="button" @click="heuristicPanelOpen = !heuristicPanelOpen">
+                <span>{{ t("heuristicSettingsLabel") }}</span>
+                <span>{{ heuristicPanelOpen ? "▴" : "▾" }}</span>
+            </button>
+            <div class="collapsible-body" v-show="heuristicPanelOpen">
+                <label class="pill pill-label mt-10">
+                    <input type="checkbox" v-model="heuristicEnabled">
+                    {{ t("heuristicEnabled") }}
+                </label>
+
+                <textarea
+                        class="field mt-8"
+                        rows="4"
+                        v-model="heuristicKeywordsText"
+                        :placeholder="t('heuristicKeywordsPlaceholder')"
+                ></textarea>
+
+                <div class="small mt-8">{{ t("heuristicKeywordsHelp") }}</div>
+            </div>
+        </div>
+
+        <div class="progress" :class="{visible: progressVisible}">
+            <div class="progress-bar">
+                <div class="progress-fill" :style="progressStyle"></div>
+            </div>
+            <div class="progress-text">{{ progressText }}</div>
+        </div>
+
+        <div class="small mt-10">
+            {{ t("exportFacetHelp") }}
+        </div>
+
+        <div class="row mt-8">
+            <button class="button" @click="exportSelection" :disabled="selectionIds.size === 0">
+                {{ t("exportFacetSelection") }} — {{ activeFacetLabel }}
+                ({{ selectionIds.size }} {{ t("pages") }})
+            </button>
+        </div>
+        <div class="project-card" v-if="appConfig.project?.show">
+            <img
+                    v-if="projectLogoOk && appConfig.project.logoUrl"
+                    class="project-logo"
+                    :src="PROJECT_LOGO_URL"
+                    :alt="appConfig.project.name || t('projectLogoAlt')"
+                    @error="projectLogoOk = false"
+            />
+            <div v-else class="project-logo-fallback">{{ projectInitials }}</div>
+
+            <div>
+                <p>
+                    {{ appConfig.project.description }}
+                    <template v-if="appConfig.project.url">
+                        <br>
+                        <a :href="appConfig.project.url" target="_blank" rel="noopener">
+                            {{ appConfig.project.name }}
+                        </a>
+                    </template>
+                    <template v-if="appConfig.project.institution">
+                        <br>
+                        <a v-if="appConfig.project.institutionUrl"
+                           :href="appConfig.project.institutionUrl"
+                           target="_blank"
+                           rel="noopener">
+                            {{ appConfig.project.institution }}
+                        </a>
+                        <span v-else>{{ appConfig.project.institution }}</span>
+                    </template>
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <section v-if="tab === 'image'" class="controls">
+        <label class="form-label">{{ t("localImageLabel") }}</label>
+
+        <div
+                class="dropzone"
+                :class="{dragover: dragOverImage}"
+                @dragover.prevent="dragOverImage = true"
+                @dragleave.prevent="dragOverImage = false"
+                @drop.prevent="onImageDrop"
+        >
+            <strong>{{ t("dropImage") }}</strong>
+            <span>{{ t("browseImage") }}</span>
+
+            <div class="file-picker">
+                <input class="file-input" type="file" accept="image/*" @change="onFile"
+                       :disabled="!modelReady || isBusy"/>
+            </div>
+        </div>
+
+        <label class="form-label">{{ t("thresholdLabel") }}</label>
+        <div class="slider">
+            <input class="slider-input" type="range" min="0" max="100" v-model.number="thresholdPctImage"/>
+            <div class="slider-value">{{ thresholdPctImage }}%</div>
+        </div>
+
+        <div class="row mt-10">
+            <button class="button button-primary" @click="predictImage"
+                    :disabled="!modelReady || !imageFile || isBusy">
+                {{ t("predict") }}
+            </button>
+            <button class="button" @click="clearImage" :disabled="isBusy">
+                {{ t("clear") }}
+            </button>
+        </div>
+
+        <div class="small mt-10">{{ t("imageHelp") }}</div>
+    </section>
+
+    <div class="help-box" v-if="appConfig.ui.showHelp">
+        <strong>{{ t("helpTitle") }}</strong><br/>
+        <span>{{ t("helpStep1") }}</span><br/>
+        <span>{{ t("helpStep2") }}</span><br/>
+        <span>{{ t("helpStep3") }}</span>
+    </div>
+</div>
+</aside>
+
+<main class="viewer">
+    <template v-if="tab === 'iiif'">
+        <section class="mirador-shell">
+            <div class="mirador-topbar">
+                <div class="mirador-topbar-left">
+                    <button class="button mirador-button" @click="miradorCollapsed = !miradorCollapsed"
+                            :disabled="!manifest">
+                        {{ miradorCollapsed ? t("expandMirador") : t("collapseMirador") }}
+                    </button>
+                    <div class="mirador-title">{{ currentTitle }}</div>
+                </div>
+
+                <div class="row">
+                    <button class="button mirador-button" @click="openFirstSelected"
+                            :disabled="selection.length === 0">
+                        {{ t("openSelection") }}
+                    </button>
+                    <button class="button mirador-button" @click="goNextSelected(1)"
+                            :disabled="selection.length === 0">
+                        {{ t("next") }}
+                    </button>
+                    <button class="button mirador-button" @click="goNextSelected(-1)"
+                            :disabled="selection.length === 0">
+                        {{ t("previous") }}
+                    </button>
+                </div>
+            </div>
+
+            <div class="mirador-wrap" :class="{collapsed: miradorCollapsed}">
+                <div id="mirador"></div>
+            </div>
+        </section>
+
+        <section class="workspace">
+            <div class="workspace-header">
+          <span class="pill">
+            <b>{{ t("selection") }}</b>
+            {{ selection.length }} / {{ canvases.length }}
+          </span>
+
+                <span class="pill">
+            <b>{{ t("threshold") }}</b>
+            {{ thresholdPct }}%
+          </span>
+
+                <span class="pill">
+            {{ t("facetLabel") }}:
+            <select class="select facet-select" v-model="facet" @change="applySelection(false, 'filter')">
+              <option value="all">{{ t("allFacet") }}</option>
+              <option value="pos">{{ t("positiveFacet") }}</option>
+              <option value="neg">{{ t("negativeFacet") }}</option>
+              <option value="overridden">{{ t("overriddenFacet") }}</option>
+              <option value="pending">{{ t("pendingFacet") }}</option>
+              <option value="errors">{{ t("errorsFacet") }}</option>
+            </select>
+          </span>
+
+                <label class="pill pill-label">
+                    <input type="checkbox" v-model="editMode" @change="applySelection(true)">
+                    {{ t("editMode") }}
+                </label>
+
+                <span class="pill" v-if="selection.length > 0">
+            <b>{{ t("current") }}</b>
+            #{{ currentSelectedPos + 1 }} / {{ selection.length }}
+          </span>
+            </div>
+
+            <div class="workspace-content">
+                <div class="hist" v-if="histItems.length > 0">
+                    <div class="hist-title">
+                        <b>{{ t("histogramTitle") }}</b>
+                        <span>{{ t("histogramHelp") }}</span>
+                    </div>
+
+                    <div class="sparkline">
+                        <div
+                                v-for="histItem in histItems"
+                                :key="histItem.id"
+                                class="sparkbar"
+                                :class="sparkBarClass(histItem)"
+                                :style="sparkBarStyle(histItem.id)"
+                                :title="sparkTitle(histItem)"
+                                @click="selectCanvas(histItem)"
+                        ></div>
+                    </div>
+                </div>
+
+                <div class="hist" v-else>
+                    <div class="hist-title">
+                        <b>{{ t("emptyHistogramTitle") }}</b>
+                        <span>{{ t("emptyHistogram") }}</span>
+                    </div>
+                </div>
+
+                <div class="list-wrap" ref="listWrap">
+                    <ul class="list">
+                        <li
+                                class="item"
+                                v-for="canvas in selection"
+                                :key="canvas.id"
+                                :class="{active: canvas._index === currentIndex}"
+                                @click="selectCanvas(canvas)"
+                        >
+                            <img class="thumb" :src="canvas.thumb || ''" alt="" @error="hideImg"/>
+
+                            <div class="meta">
+                                <p class="meta1">{{ canvas.label }}</p>
+                                <p class="meta2">
+                                    <span>{{ itemStatusText(canvas.id) }}</span>
+                                    <span v-if="overrides.has(canvas.id)">{{ t("override") }}</span>
+                                </p>
+                            </div>
+
+                            <div class="conf">
+                                <div v-if="hasUsableResult(canvas.id)" class="bar">
+                                    <div class="fill" :class="{ok: finalChecked(canvas.id)}"
+                                         :style="probabilityFillStyle(canvas.id)"></div>
+                                </div>
+
+                                <span v-if="hasUsableResult(canvas.id)">
+                    {{ Math.round(getPositiveScore(canvas.id) * 100) }}%
+                  </span>
+
+                                <div class="editbox" v-if="editMode">
+                                    <label class="checkbox-label" @click.stop>
+                                        <input
+                                                type="checkbox"
+                                                :checked="finalChecked(canvas.id)"
+                                                @click.stop
+                                                @change.stop="setOverride(canvas.id, $event.target.checked)"
+                                        >
+                                        {{ positiveLabelShort }}
+                                    </label>
+
+                                    <button class="button button-compact" @click.stop="clearOverride(canvas.id)">
+                                        {{ t("resetOverride") }}
+                                    </button>
+                                </div>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="small">{{ t("heuristicHelp") }}</div>
+            </div>
+        </section>
+    </template>
+
+    <template v-else>
+        <div class="image-right">
+            <div class="image-card">
+                <div class="row row-spread mt-10">
+                    <div class="image-card-title">{{ t("imageResult") }}</div>
+                    <div class="small" v-if="imageResult">
+                        <b>{{ t("predictionLabel") }}</b>: {{ imageResult.pred }}
+                        · <b>{{ scoreLabel }}</b>: {{ (imageResult.p_positive * 100).toFixed(1) }}%
+                    </div>
+                </div>
+
+                <div v-if="imagePreviewUrl" class="image-grid mt-10">
+                    <img class="img-big" :src="imagePreviewUrl" :alt="t('imagePreviewAlt')"/>
+
+                    <div class="prob-box" v-if="imageResult">
+                        <div class="hbar-row" v-for="(probability, index) in imageResult.probs" :key="index">
+                            <div class="hbar-label">
+                                {{ imageResult.labels[index] ?? `${t("classLabelPrefix")}_${index}` }}
+                            </div>
+                            <div class="hbar">
+                                <div class="hbar-fill" :style="horizontalProbabilityStyle(probability)"></div>
+                            </div>
+                            <div class="hbar-val">{{ (probability * 100).toFixed(1) }}%</div>
+                        </div>
+                    </div>
+
+                    <div class="prob-box" v-else>
+                        <b>{{ t("probabilities") }}</b>
+                        <div class="small mt-8">{{ t("noImageResult") }}</div>
+                    </div>
+                </div>
+
+                <div v-else class="small mt-10">{{ t("loadImageHelp") }}</div>
+                <pre v-if="imageOutput" class="output">{{ imageOutput }}</pre>
+            </div>
+        </div>
+    </template>
+</main>
+</div>
+
+<script type="module">
+    const {createApp} = Vue;
+
+    /**
+     * Default application configuration.
+     *
+     * This object is intentionally generic. Domain-specific wording, labels,
+     * model runs, project metadata, and heuristic keywords should live in
+     * app.config.json.
+     */
+    const DEFAULT_CONFIG = {
+        mode: "local",
+        ui: {
+            title: "IIIF Image Classifier",
+            description: "Load an image classifier, run it on IIIF manifests or local images, and export the selected canvases as a new IIIF manifest.",
+            descriptionCollapsedByDefault: true,
+            showHelp: true,
+            showArtefactsInput: true,
+            texts: {
+                showInfo: "Info",
+                hideInfo: "Hide",
+                artefactsLabel: "Artifacts web folder",
+                artefactsPlaceholder: "./Artefacts",
+                artefactsHelp: "Start a local HTTP server. Browsers cannot read arbitrary local file paths.",
+                runsLabel: "Available models",
+                refreshRuns: "Refresh model list",
+                loadModel: "Load model",
+                reset: "Reset",
+                tabsAriaLabel: "Input mode",
+                iiifTab: "IIIF Manifest",
+                imageTab: "Image",
+                manifestUrlLabel: "IIIF manifest URL",
+                manifestUrlPlaceholder: "https://.../manifest.json",
+                loadManifest: "Load manifest",
+                classify: "Classify",
+                stop: "Stop",
+                thresholdLabel: "Positive-class threshold",
+                threshold: "Threshold",
+                resetOptimalThreshold: "Reset optimal threshold",
+                exportFacetSelection: "Export current facet selection",
+                exportFacetHelp: "The exported manifest contains the canvases currently shown by the active facet. Switch facet to export another selection.",
+                optimalThresholdLabel: "Model optimal threshold",
+                parallelLabel: "Parallelization",
+                parallelHelp: "Number of canvases classified in parallel.",
+                heuristicSettingsLabel: "Negative heuristic",
+                heuristicEnabled: "Enable forced negative labels",
+                heuristicKeywordsPlaceholder: "One keyword per line",
+                heuristicKeywordsHelp: "If a canvas label contains one of these keywords, it is classified as negative without model inference.",
+                heuristicSkipped: "heuristic negative",
+                heuristicHelp: "Negative heuristic can force selected labels to the negative class before inference.",
+                exportManifest: "Export filtered IIIF manifest",
+                pages: "pages",
+                facetLabel: "Facet",
+                allFacet: "All",
+                positiveFacet: "Positive",
+                negativeFacet: "Negative",
+                overriddenFacet: "Corrected",
+                pendingFacet: "Pending",
+                errorsFacet: "Errors",
+                editMode: "Correction mode",
+                selection: "Selection",
+                current: "Current",
+                histogramTitle: "Positive-class score histogram",
+                histogramHelp: "Click a bar to open",
+                emptyHistogramTitle: "Empty histogram",
+                emptyHistogram: "No canvas in the selection",
+                localImageLabel: "Local image",
+                dropImage: "Drag and drop an image here",
+                browseImage: "or use the file picker below",
+                predict: "Predict",
+                clear: "Clear",
+                imageHelp: "The prediction and probability bars are displayed on the right.",
+                imageResult: "Image result",
+                predictionLabel: "Prediction",
+                probabilities: "Probabilities",
+                runPrediction: "Run prediction",
+                noImageResult: "No result yet.",
+                loadImageHelp: "Load an image from the Image tab, then click Predict.",
+                imagePreviewAlt: "Image preview",
+                classLabelPrefix: "class",
+                projectLogoAlt: "Project logo",
+                expandMirador: "▸ Expand Mirador",
+                collapseMirador: "▾ Collapse Mirador",
+                openSelection: "Open selection",
+                next: "Next",
+                previous: "Previous",
+                override: "override",
+                positiveShort: "positive",
+                resetOverride: "Reset",
+                scoreLabel: "p(positive)",
+                statusReady: "Ready. Select a model, then load it.",
+                statusLoadingRuns: "Loading model list…",
+                statusOnlineRuns: "Online models",
+                statusLocalRuns: "Local models found",
+                statusRunsError: "Unable to load model list.",
+                statusOnlineRunMissing: "Online model entry not found in app.config.json.",
+                statusLoadingModel: "Loading ONNX model and configuration…",
+                statusModelLoaded: "Model loaded",
+                statusLoadRunError: "Model loading error",
+                statusResetOk: "Reset complete.",
+                statusLoadModelFirst: "Load a model first.",
+                statusLoadingManifest: "Loading manifest…",
+                statusManifestLoaded: "Manifest loaded",
+                statusManifestError: "Manifest error",
+                statusLoadManifestFirst: "Load a manifest first.",
+                statusLoadModelBeforeImage: "Load a model before adding an image.",
+                statusDroppedFileNotImage: "The dropped file is not an image.",
+                statusSelectedFileNotImage: "The selected file is not an image.",
+                statusClassificationRunning: "Classification running…",
+                parallelSuffix: "in parallel",
+                statusStopped: "Stopped",
+                statusDone: "Done",
+                positivesAtThreshold: "positives at threshold",
+                statusStopRequested: "Stop requested.",
+                statusPending: "Pending",
+                statusError: "Error",
+                statusProcessing: "Processing…",
+                statusExportOk: "IIIF v3 manifest exported",
+                statusImageLoaded: "Image loaded",
+                statusImageInference: "Running image inference…",
+                statusImageDone: "Image processed",
+                statusPredictionError: "Prediction error",
+                errorModelNotFound: "Unable to find an ONNX model.",
+                errorNoCanvasImageUrl: "No image URL found for this canvas.",
+                helpTitle: "Local help",
+                helpStep1: "1) Place index.html next to app.config.json.",
+                helpStep2: "2) Start a server: python -m http.server 8000.",
+                helpStep3: "3) Open http://localhost:8000 and set the artifacts web folder.",
+                citationTitle: "How to cite",
+                citationText: "If you use this application or its outputs, please cite the associated software.",
+                citationLinkLabel: "Citation metadata"
+            }
+        },
+        project: {
+            show: false,
+            name: "",
+            description: "",
+            url: "",
+            institution: "",
+            institutionUrl: "",
+            logoUrl: ""
+        },
+        citation: {
+            show: false,
+            title: "How to cite",
+            text: "If you use this application or its outputs, please cite the associated software.",
+            short: "",
+            url: "",
+            linkLabel: "Citation metadata"
+        },
+        assets: {
+            iiifLogoUrl: "./assets/images/iiif-logo.png",
+            projectLogoUrl: ""
+        },
+        labels: {
+            positive: "positive",
+            negative: "negative",
+            positiveAliases: ["positive", "1"],
+            negativeAliases: ["negative", "0"]
+        },
+        heuristic: {
+            enabled: true,
+            collapsedByDefault: true,
+            keywordsForceNegative: []
+        },
+        local: {
+            defaultArtefactsBaseUrl: "./Artefacts"
+        },
+        online: {
+            huggingFaceRepoLabel: "",
+            huggingFaceRepoURL: "",
+            runs: []
+        }
+    };
+
+    /**
+     * Deeply merges plain configuration objects.
+     *
+     * Arrays are replaced, not concatenated. This makes app.config.json
+     * predictable for labels, aliases, model runs, and heuristic keywords.
+     *
+     * @param {object} base - Base object.
+     * @param {object} override - Override object.
+     * @returns {object} Merged object.
+     */
+    function deepMerge(base, override) {
+        if (!override || typeof override !== "object") return structuredClone(base);
+        const output = structuredClone(base);
+
+        for (const [key, value] of Object.entries(override)) {
+            if (
+                value &&
+                typeof value === "object" &&
+                !Array.isArray(value) &&
+                output[key] &&
+                typeof output[key] === "object" &&
+                !Array.isArray(output[key])
+            ) {
+                output[key] = deepMerge(output[key], value);
+            } else {
+                output[key] = value;
+            }
+        }
+
+        return output;
+    }
+
+    /**
+     * Loads app.config.json and merges it with DEFAULT_CONFIG.
+     *
+     * @returns {Promise<object>} Complete application configuration.
+     */
+    async function loadAppConfig() {
+        try {
+            const response = await fetch("./app.config.json", {
+                cache: "no-store",
+                headers: {"Cache-Control": "no-cache", "Pragma": "no-cache"}
+            });
+
+            if (!response.ok) return DEFAULT_CONFIG;
+
+            const userConfig = await response.json();
+            return deepMerge(DEFAULT_CONFIG, userConfig);
+        } catch (error) {
+            console.warn("Unable to load app.config.json. Using DEFAULT_CONFIG.", error);
+            return DEFAULT_CONFIG;
+        }
+    }
+
+    /**
+     * Adds a cache-busting query parameter to small config JSON URLs.
+     *
+     * @param {string} url - URL to modify.
+     * @returns {string} URL with cache-busting timestamp.
+     */
+    function withCacheBuster(url) {
+        const separator = url.includes("?") ? "&" : "?";
+        return `${url}${separator}_=${Date.now()}`;
+    }
+
+    /**
+     * Normalizes text for case-insensitive and accent-insensitive matching.
+     *
+     * @param {string} value - Raw text.
+     * @returns {string} Normalized text.
+     */
+    function normalizeText(value) {
+        if (!value) return "";
+        return String(value)
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/\p{Diacritic}/gu, "")
+            .replace(/\s+/g, " ")
+            .trim();
+    }
+
+    /**
+     * Clamps a number inside a range.
+     *
+     * @param {number} value - Input number.
+     * @param {number} lowerBound - Lower bound.
+     * @param {number} upperBound - Upper bound.
+     * @returns {number} Clamped number.
+     */
+    function clamp(value, lowerBound, upperBound) {
+        return Math.max(lowerBound, Math.min(upperBound, value));
+    }
+
+    /**
+     * Converts logits to probabilities with softmax.
+     *
+     * @param {number[]} values - Model logits.
+     * @returns {number[]} Probabilities.
+     */
+    function softmax(values) {
+        const maxValue = Math.max(...values);
+        const exps = values.map(value => Math.exp(value - maxValue));
+        const sum = exps.reduce((acc, value) => acc + value, 0);
+        return exps.map(value => value / sum);
+    }
+
+    /**
+     * Fetches JSON and throws explicit errors.
+     *
+     * Important CORS note:
+     * Do not send custom headers such as Cache-Control or Pragma here.
+     * On external IIIF manifests, those headers turn a simple GET into a
+     * CORS preflight request. Some IIIF servers answer preflight with redirects
+     * or without the expected CORS headers, which makes the browser block the
+     * request before the manifest can be fetched.
+     *
+     * Cache-busting is handled by adding a query parameter only for local/model
+     * configuration files, not by custom HTTP headers.
+     *
+     * @param {string} url - JSON URL.
+     * @param {AbortSignal} [signal] - Optional abort signal.
+     * @param {object} [options] - Fetch options.
+     * @param {boolean} [options.noStore=false] - Use browser no-store cache mode.
+     * @returns {Promise<object>} Parsed JSON.
+     */
+    async function fetchJsonOrThrow(url, signal, options = {}) {
+        const fetchOptions = {signal};
+
+        if (options.noStore) {
+            fetchOptions.cache = "no-store";
+        }
+
+        const response = await fetch(url, fetchOptions);
+
+        if (!response.ok) {
+            const text = await response.text().catch(() => "");
+            throw new Error(`HTTP ${response.status} — ${url}\n${text.slice(0, 200)}`);
+        }
+
+        return await response.json();
+    }
+
+    /**
+     * Resizes an image to a square without preserving aspect ratio.
+     *
+     * This matches torchvision.transforms.Resize((size, size)).
+     *
+     * @param {HTMLImageElement} image - Source image.
+     * @param {number} size - Output square size.
+     * @returns {{imageData: ImageData, cropSize: number}} ImageData and output size.
+     */
+    function resizeSquare(image, size) {
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+
+        const context = canvas.getContext("2d", {willReadFrequently: true});
+        context.drawImage(image, 0, 0, size, size);
+
+        return {
+            imageData: context.getImageData(0, 0, size, size),
+            cropSize: size
+        };
+    }
+
+    /**
+     * Resizes an image preserving aspect ratio and pads the remaining area.
+     *
+     * @param {HTMLImageElement} image - Source image.
+     * @param {number} size - Output square size.
+     * @param {number} fill - RGB fill value.
+     * @returns {{imageData: ImageData, cropSize: number}} ImageData and output size.
+     */
+    function resizeWithPadding(image, size, fill = 255) {
+        const originalWidth = image.naturalWidth || image.width;
+        const originalHeight = image.naturalHeight || image.height;
+
+        const scale = Math.min(size / originalWidth, size / originalHeight);
+        const newWidth = Math.round(originalWidth * scale);
+        const newHeight = Math.round(originalHeight * scale);
+
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+
+        const context = canvas.getContext("2d", {willReadFrequently: true});
+        context.fillStyle = `rgb(${fill}, ${fill}, ${fill})`;
+        context.fillRect(0, 0, size, size);
+
+        const x = Math.floor((size - newWidth) / 2);
+        const y = Math.floor((size - newHeight) / 2);
+        context.drawImage(image, x, y, newWidth, newHeight);
+
+        return {
+            imageData: context.getImageData(0, 0, size, size),
+            cropSize: size
+        };
+    }
+
+    /**
+     * Resizes the shorter edge and center-crops a square.
+     *
+     * @param {HTMLImageElement} image - Source image.
+     * @param {number} resizeSize - Target shorter edge before crop.
+     * @param {number} cropSize - Output crop size.
+     * @returns {{imageData: ImageData, cropSize: number}} ImageData and output size.
+     */
+    function resizeShorterEdgeAndCenterCrop(image, resizeSize, cropSize) {
+        const originalWidth = image.naturalWidth || image.width;
+        const originalHeight = image.naturalHeight || image.height;
+
+        let newWidth;
+        let newHeight;
+
+        if (originalWidth < originalHeight) {
+            newWidth = resizeSize;
+            newHeight = Math.round(originalHeight * (resizeSize / originalWidth));
+        } else {
+            newHeight = resizeSize;
+            newWidth = Math.round(originalWidth * (resizeSize / originalHeight));
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = newWidth;
+        canvas.height = newHeight;
+
+        const context = canvas.getContext("2d", {willReadFrequently: true});
+        context.drawImage(image, 0, 0, newWidth, newHeight);
+
+        const x0 = Math.floor((newWidth - cropSize) / 2);
+        const y0 = Math.floor((newHeight - cropSize) / 2);
+        const sx = clamp(x0, 0, Math.max(0, newWidth - cropSize));
+        const sy = clamp(y0, 0, Math.max(0, newHeight - cropSize));
+
+        return {
+            imageData: context.getImageData(sx, sy, cropSize, cropSize),
+            cropSize
+        };
+    }
+
+    /**
+     * Applies the preprocessing mode declared in preprocess.json/inference_config.json.
+     *
+     * Supported preprocess_mode values:
+     * - resize_square: direct square resize.
+     * - padding: aspect-ratio preserving resize with padding.
+     * - center_crop: shorter-edge resize followed by center crop.
+     *
+     * @param {HTMLImageElement} image - Source image.
+     * @param {object} spec - Preprocessing specification.
+     * @returns {{imageData: ImageData, cropSize: number}} ImageData and output size.
+     */
+    function preprocessImageData(image, spec) {
+        const size = Number(spec.img_size) || 224;
+        const resizeSize = Number(spec.resize_size) || size;
+        const mode = spec.preprocess_mode || "resize_square";
+
+        if (mode === "center_crop") return resizeShorterEdgeAndCenterCrop(image, resizeSize, size);
+        if (mode === "padding") return resizeWithPadding(image, size);
+
+        return resizeSquare(image, size);
+    }
+
+    /**
+     * Converts an HTML image element to an ONNX Runtime tensor.
+     *
+     * Output shape is [1, 3, H, W], normalized with the model mean/std.
+     *
+     * @param {HTMLImageElement} image - Image element.
+     * @param {object} spec - Preprocessing specification.
+     * @returns {ort.Tensor} ONNX input tensor.
+     */
+    function imageToTensor(image, spec) {
+        const cropSize = Number(spec.img_size) || 224;
+        const {imageData} = preprocessImageData(image, spec);
+        const rgba = imageData.data;
+        const mean = spec.mean || [0.485, 0.456, 0.406];
+        const std = spec.std || [0.229, 0.224, 0.225];
+        const floatData = new Float32Array(1 * 3 * cropSize * cropSize);
+
+        let pixelIndex = 0;
+        for (let y = 0; y < cropSize; y++) {
+            for (let x = 0; x < cropSize; x++) {
+                const rgbaOffset = (y * cropSize + x) * 4;
+                const r = rgba[rgbaOffset] / 255.0;
+                const g = rgba[rgbaOffset + 1] / 255.0;
+                const b = rgba[rgbaOffset + 2] / 255.0;
+
+                floatData[0 * cropSize * cropSize + pixelIndex] = (r - mean[0]) / std[0];
+                floatData[1 * cropSize * cropSize + pixelIndex] = (g - mean[1]) / std[1];
+                floatData[2 * cropSize * cropSize + pixelIndex] = (b - mean[2]) / std[2];
+                pixelIndex++;
+            }
+        }
+
+        return new ort.Tensor("float32", floatData, [1, 3, cropSize, cropSize]);
+    }
+
+    /**
+     * Detects the IIIF Presentation API version.
+     *
+     * @param {object} manifest - IIIF manifest.
+     * @returns {number} IIIF version, 2 or 3.
+     */
+    function detectManifestVersion(manifest) {
+        if (manifest.sequences) return 2;
+        if (manifest.items) return 3;
+
+        const context = manifest["@context"];
+        if (typeof context === "string" && context.includes("presentation/3")) return 3;
+        if (Array.isArray(context) && context.some(item => typeof item === "string" && item.includes("presentation/3"))) return 3;
+
+        return 2;
+    }
+
+    /**
+     * Extracts a string label from IIIF v2/v3 label formats.
+     *
+     * @param {string|object|null} label - IIIF label.
+     * @param {number} index - Canvas index.
+     * @returns {string} Human-readable label.
+     */
+    function getLabel(label, index) {
+        if (!label) return `Canvas ${index + 1}`;
+        if (typeof label === "string") return label;
+
+        if (typeof label === "object") {
+            const values = label.fr || label.en || label.none || Object.values(label)[0];
+            if (Array.isArray(values)) return values[0];
+            return values || `Canvas ${index + 1}`;
+        }
+
+        return `Canvas ${index + 1}`;
+    }
+
+    /**
+     * Extracts normalized canvas records from a IIIF manifest.
+     *
+     * @param {object} manifest - IIIF manifest.
+     * @returns {object[]} Normalized canvases.
+     */
+    function extractCanvases(manifest) {
+        const version = detectManifestVersion(manifest);
+        const output = [];
+
+        if (version === 2) {
+            const canvases = manifest.sequences?.[0]?.canvases || [];
+            canvases.forEach((canvas, index) => output.push(parseCanvasV2(canvas, index)));
+            return output;
+        }
+
+        const items = manifest.items || [];
+        items.forEach((item, index) => {
+            if (item.type === "Canvas") output.push(parseCanvasV3(item, index));
+        });
+
+        return output;
+    }
+
+    /**
+     * Parses a IIIF Presentation API v2 canvas.
+     *
+     * @param {object} canvas - IIIF v2 canvas.
+     * @param {number} index - Canvas index.
+     * @returns {object} Normalized canvas.
+     */
+    function parseCanvasV2(canvas, index) {
+        let imageUrl = null;
+        let serviceUrl = null;
+        let imgW = null;
+        let imgH = null;
+        let format = null;
+
+        const resource = canvas.images?.[0]?.resource;
+        if (resource) {
+            imageUrl = resource["@id"] || resource.id || null;
+            imgW = resource.width ?? null;
+            imgH = resource.height ?? null;
+            format = resource.format ?? null;
+
+            const service = resource.service;
+            serviceUrl = service?.["@id"] || service?.id || null;
+        }
+
+        const id = canvas["@id"] || canvas.id || `idx-${index + 1}`;
+        const label = getLabel(canvas.label, index);
+        const thumb = getThumbnailUrl(canvas.thumbnail, serviceUrl);
+
+        return {
+            id,
+            label,
+            index,
+            width: canvas.width ?? imgW ?? null,
+            height: canvas.height ?? imgH ?? null,
+            imageUrl,
+            serviceUrl,
+            thumb,
+            imgW,
+            imgH,
+            format,
+            _index: index
+        };
+    }
+
+    /**
+     * Parses a IIIF Presentation API v3 canvas.
+     *
+     * @param {object} canvas - IIIF v3 canvas.
+     * @param {number} index - Canvas index.
+     * @returns {object} Normalized canvas.
+     */
+    function parseCanvasV3(canvas, index) {
+        let imageUrl = null;
+        let serviceUrl = null;
+        let imgW = null;
+        let imgH = null;
+        let format = null;
+
+        for (const annotationPage of canvas.items || []) {
+            for (const annotation of annotationPage.items || []) {
+                if (annotation.motivation !== "painting") continue;
+
+                const body = annotation.body;
+                if (!body) continue;
+
+                imageUrl = body.id || body["@id"] || null;
+                imgW = body.width ?? null;
+                imgH = body.height ?? null;
+                format = body.format ?? null;
+
+                const services = body.service || [];
+                const service = Array.isArray(services) ? services[0] : services;
+                serviceUrl = service?.["@id"] || service?.id || null;
+            }
+        }
+
+        const id = canvas.id || canvas["@id"] || `idx-${index + 1}`;
+        const label = getLabel(canvas.label, index);
+        const thumb = getThumbnailUrl(canvas.thumbnail, serviceUrl);
+
+        return {
+            id,
+            label,
+            index,
+            width: canvas.width ?? imgW ?? null,
+            height: canvas.height ?? imgH ?? null,
+            imageUrl,
+            serviceUrl,
+            thumb,
+            imgW,
+            imgH,
+            format,
+            _index: index
+        };
+    }
+
+    /**
+     * Extracts or builds a thumbnail URL.
+     *
+     * @param {string|object|Array|null} thumbnail - IIIF thumbnail.
+     * @param {string|null} serviceUrl - IIIF Image API service URL.
+     * @returns {string|null} Thumbnail URL.
+     */
+    function getThumbnailUrl(thumbnail, serviceUrl) {
+        if (thumbnail) {
+            const value = Array.isArray(thumbnail) ? thumbnail[0] : thumbnail;
+            if (typeof value === "string") return value;
+            return value.id || value["@id"] || null;
+        }
+
+        if (serviceUrl) return `${serviceUrl}/full/!320,320/0/default.jpg`;
+        return null;
+    }
+
+    /**
+     * Chooses the image URL used for classification.
+     *
+     * @param {object} canvas - Normalized canvas.
+     * @param {number} target - Target width requested from IIIF Image API.
+     * @returns {Promise<string|null>} Image URL.
+     */
+    async function bestImageUrlForInference(canvas, target = 250) {
+        if (canvas.serviceUrl) return `${canvas.serviceUrl}/full/${target},/0/default.jpg`;
+        return canvas.imageUrl || canvas.thumb;
+    }
+
+    /**
+     * Loads an artifacts index.json and returns run IDs.
+     *
+     * @param {string} baseUrl - Artifacts base URL.
+     * @param {AbortSignal} [signal] - Optional abort signal.
+     * @returns {Promise<string[]>} Run IDs.
+     */
+    async function loadRunsIndex(baseUrl, signal) {
+        const indexUrl = withCacheBuster(`${baseUrl.replace(/\/$/, "")}/index.json`);
+        const indexJson = await fetchJsonOrThrow(indexUrl, signal, {noStore: true});
+        const runs = Array.isArray(indexJson) ? indexJson : (indexJson.runs || []);
+
+        if (!Array.isArray(runs)) {
+            throw new Error("Invalid index.json. Expected { runs: [...] } or [...].");
+        }
+
+        return runs;
+    }
+
+    createApp({
+        data() {
+            return {
+                appConfig: DEFAULT_CONFIG,
+                artefactsBaseUrl: DEFAULT_CONFIG.local.defaultArtefactsBaseUrl,
+                HF_REPO_URL: DEFAULT_CONFIG.online.huggingFaceRepoURL,
+                HF_REPO_LABEL: DEFAULT_CONFIG.online.huggingFaceRepoLabel,
+                IIIF_LOGO_URL: DEFAULT_CONFIG.assets.iiifLogoUrl,
+                PROJECT_LOGO_URL: DEFAULT_CONFIG.assets.projectLogoUrl,
+
+                POSITIVE_LABEL: DEFAULT_CONFIG.labels.positive,
+                NEGATIVE_LABEL: DEFAULT_CONFIG.labels.negative,
+
+                headerDescriptionOpen: false,
+                projectLogoOk: true,
+
+                tab: "iiif",
+                runs: [],
+                selectedRun: "",
+                runBaseUrl: null,
+
+                manifestUrl: "",
+                manifest: null,
+                canvases: [],
+                currentIndex: 0,
+
+                results: new Map(),
+                selectionIds: new Set(),
+                overrides: new Map(),
+                facet: "all",
+                editMode: false,
+
+                heuristicEnabled: true,
+                heuristicKeywordsText: "",
+                heuristicPanelOpen: false,
+
+                filteredManifestUrl: null,
+                filteredManifestObj: null,
+
+                mirador: null,
+                miradorWindowId: null,
+                miradorCollapsed: false,
+                pendingCanvasId: null,
+                miradorRefreshTimer: null,
+                miradorRefreshQueued: false,
+
+                preprocess: null,
+                inferCfg: null,
+                sess: null,
+                inputName: null,
+                outputName: null,
+                modelReady: false,
+
+                isBusy: false,
+                isRunning: false,
+                abortController: null,
+                progressVisible: false,
+                progressPct: 0,
+                progressText: "0 / 0",
+                classificationConcurrency: 1,
+
+                statusMsg: "",
+                statusType: "",
+
+                thresholdPct: 50,
+                thresholdPctImage: 50,
+                optimalThresholdPct: 50,
+
+                dragOverImage: false,
+                imageFile: null,
+                imagePreviewUrl: "",
+                imageOutput: "",
+                imageResult: null
+            };
+        },
+
+        computed: {
+            /**
+             * Returns model options for the selector.
+             *
+             * @returns {{id: string, label?: string, baseUrl?: string}[]} Model options.
+             */
+            runOptions() {
+                if (this.appConfig.mode === "online") return this.appConfig.online?.runs || [];
+                return this.runs.map(run => ({id: run, label: run}));
+            },
+
+            /**
+             * Returns the human-readable label of the active facet.
+             *
+             * @returns {string} Active facet label.
+             */
+            activeFacetLabel() {
+                const labels = {
+                    all: this.t("allFacet"),
+                    pos: this.t("positiveFacet"),
+                    neg: this.t("negativeFacet"),
+                    overridden: this.t("overriddenFacet"),
+                    pending: this.t("pendingFacet"),
+                    errors: this.t("errorsFacet")
+                };
+
+                return labels[this.facet] || this.facet;
+            },
+
+            /**
+             * Returns the IIIF threshold as a decimal.
+             *
+             * @returns {number} Threshold between 0 and 1.
+             */
+            threshold() {
+                return this.thresholdPct / 100;
+            },
+
+            /**
+             * Returns the local image threshold as a decimal.
+             *
+             * @returns {number} Threshold between 0 and 1.
+             */
+            thresholdImage() {
+                return this.thresholdPctImage / 100;
+            },
+
+            /**
+             * Returns the label used for positive-class scores.
+             *
+             * @returns {string} Score label.
+             */
+            scoreLabel() {
+                return this.t("scoreLabel", `p(${this.POSITIVE_LABEL})`);
+            },
+
+            /**
+             * Returns a short positive label for manual correction checkboxes.
+             *
+             * @returns {string} Short positive label.
+             */
+            positiveLabelShort() {
+                return this.t("positiveShort", this.POSITIVE_LABEL);
+            },
+
+            /**
+             * Returns canvases used in the histogram.
+             *
+             * @returns {object[]} Histogram items.
+             */
+            histItems() {
+                if (this.selection.length) return this.selection;
+
+                const done = this.canvases.filter(canvas => {
+                    const result = this.results.get(canvas.id);
+                    return result && result.status === "done" && !result.error;
+                });
+
+                if (this.facet === "pos") return done.filter(canvas => this.finalChecked(canvas.id));
+                if (this.facet === "neg") return done.filter(canvas => !this.finalChecked(canvas.id));
+
+                return done;
+            },
+
+            /**
+             * Returns the current title shown above Mirador.
+             *
+             * @returns {string} Current title.
+             */
+            currentTitle() {
+                const canvas = this.canvases[this.currentIndex];
+                if (!canvas) return "—";
+
+                const result = this.results.get(canvas.id);
+                const score = result?.status === "done" && !result.error
+                    ? ` — ${this.scoreLabel}=${Math.round((result.p_positive ?? 0) * 100)}%`
+                    : "";
+                const override = this.overrides.has(canvas.id) ? ` (${this.t("override")})` : "";
+
+                return `${canvas.label}${score}${override}`;
+            },
+
+            /**
+             * Returns selected canvases sorted by original manifest order.
+             *
+             * @returns {object[]} Selected canvases.
+             */
+            selection() {
+                const ids = this.selectionIds;
+                return this.canvases
+                    .filter(canvas => ids.has(canvas.id))
+                    .sort((a, b) => (a._index ?? 0) - (b._index ?? 0));
+            },
+
+            /**
+             * Returns the current canvas position within the selection.
+             *
+             * @returns {number} Current position.
+             */
+            currentSelectedPos() {
+                if (!this.selection.length) return 0;
+                const currentId = this.canvases[this.currentIndex]?.id;
+                const index = this.selection.findIndex(canvas => canvas.id === currentId);
+                return index >= 0 ? index : 0;
+            },
+
+            /**
+             * Returns CSS style for the progress bar.
+             *
+             * @returns {object} Style object.
+             */
+            progressStyle() {
+                return {width: `${this.progressPct}%`};
+            },
+
+            /**
+             * Returns project initials for the logo fallback.
+             *
+             * @returns {string} Initials.
+             */
+            projectInitials() {
+                const name = this.appConfig.project?.name || "Project";
+                return name
+                    .split(/\s+/)
+                    .filter(Boolean)
+                    .map(part => part[0])
+                    .join("")
+                    .slice(0, 5)
+                    .toUpperCase();
+            }
+        },
+
+        watch: {
+            /**
+             * Re-focuses Mirador when returning to the IIIF tab.
+             *
+             * @param {string} newTab - Newly selected tab.
+             */
+            tab(newTab) {
+                if (newTab === "iiif" && this.manifest && this.mirador) {
+                    const currentCanvasId = this.canvases[this.currentIndex]?.id;
+                    if (currentCanvasId) this.goMiradorToCanvas(currentCanvasId);
+                }
+            }
+        },
+
+        methods: {
+            /**
+             * Returns a configured UI text.
+             *
+             * @param {string} key - Text key.
+             * @param {string} [fallback] - Fallback text.
+             * @returns {string} Text.
+             */
+            t(key, fallback = "") {
+                return this.appConfig.ui?.texts?.[key] || fallback || key;
+            },
+
+            /**
+             * Updates the status box.
+             *
+             * @param {string} message - Message.
+             * @param {string} [type] - Type: loading, success, error, or empty.
+             */
+            setStatus(message, type = "") {
+                this.statusMsg = message;
+                this.statusType = type;
+            },
+
+            /**
+             * Returns heuristic keywords from the textarea.
+             *
+             * @returns {string[]} Keywords.
+             */
+            getHeuristicKeywords() {
+                return String(this.heuristicKeywordsText || "")
+                    .split(/\n+/)
+                    .map(value => value.trim())
+                    .filter(Boolean);
+            },
+
+            /**
+             * Checks whether a canvas label matches a forced-negative keyword.
+             *
+             * @param {string} label - Canvas label.
+             * @returns {boolean} True if forced negative.
+             */
+            labelMatchesForceNegative(label) {
+                if (!this.heuristicEnabled) return false;
+
+                const normalizedLabel = normalizeText(label);
+                const keywords = this.getHeuristicKeywords().map(normalizeText);
+
+                return keywords.some(keyword => keyword && normalizedLabel.includes(keyword));
+            },
+
+            /**
+             * Hides a broken thumbnail image.
+             *
+             * @param {Event} event - Image error event.
+             */
+            hideImg(event) {
+                event.target.style.display = "none";
+            },
+
+            /**
+             * Returns whether a canvas has a completed usable result.
+             *
+             * @param {string} canvasId - Canvas ID.
+             * @returns {boolean} True if usable.
+             */
+            hasUsableResult(canvasId) {
+                const result = this.results.get(canvasId);
+                return !!result && !result.error && result.status === "done";
+            },
+
+            /**
+             * Returns final positive/negative decision for a canvas.
+             *
+             * Manual overrides take precedence over model scores.
+             *
+             * @param {string} canvasId - Canvas ID.
+             * @returns {boolean} True if positive.
+             */
+            finalChecked(canvasId) {
+                const override = this.overrides.get(canvasId);
+                if (override && typeof override.checked === "boolean") return override.checked;
+
+                const result = this.results.get(canvasId);
+                if (!result || result.error || result.status !== "done") return false;
+
+                return (result.p_positive ?? 0) >= this.threshold;
+            },
+
+            /**
+             * Sets a manual override.
+             *
+             * @param {string} canvasId - Canvas ID.
+             * @param {boolean} checked - Positive state.
+             */
+            setOverride(canvasId, checked) {
+                this.overrides.set(canvasId, {checked: Boolean(checked)});
+                this.applySelection(true, "override");
+            },
+
+            /**
+             * Clears a manual override.
+             *
+             * @param {string} canvasId - Canvas ID.
+             */
+            clearOverride(canvasId) {
+                this.overrides.delete(canvasId);
+                this.applySelection(true, "override");
+            },
+
+            /**
+             * Returns true when the current facet depends on results.
+             *
+             * @returns {boolean} Whether facet depends on results.
+             */
+            facetDependsOnResults() {
+                return ["pos", "neg", "pending", "errors", "overridden"].includes(this.facet);
+            },
+
+            /**
+             * Schedules a throttled Mirador refresh.
+             *
+             * @param {string|null} [targetCanvasId] - Canvas to open after refresh.
+             */
+            queueMiradorRefresh(targetCanvasId = null) {
+                if (!this.manifest || !this.canvases.length) return;
+                if (this.miradorRefreshQueued) return;
+
+                this.miradorRefreshQueued = true;
+                clearTimeout(this.miradorRefreshTimer);
+
+                this.miradorRefreshTimer = setTimeout(() => {
+                    this.miradorRefreshQueued = false;
+                    this.setFilteredManifestForSelection();
+
+                    const keepId = targetCanvasId || this.canvases[this.currentIndex]?.id;
+                    const targetId = keepId && this.selectionIds.has(keepId)
+                        ? keepId
+                        : (this.selection[0]?.id || null);
+
+                    this.initMirador(this.filteredManifestUrl);
+                    if (targetId) setTimeout(() => this.goMiradorToCanvas(targetId), 80);
+                }, 400);
+            },
+
+            /**
+             * Recomputes the selected canvas IDs from the facet and threshold.
+             *
+             * @param {boolean} [keepCurrentIfPossible] - Preserve current canvas if possible.
+             * @param {string} [reason] - Update reason.
+             */
+            applySelection(keepCurrentIfPossible = false, reason = "ui") {
+                const listWrap = this.$refs?.listWrap;
+                const previousScrollTop = listWrap ? listWrap.scrollTop : null;
+                const ids = new Set();
+
+                for (const canvas of this.canvases) {
+                    const result = this.results.get(canvas.id);
+                    const done = result && result.status === "done" && !result.error;
+                    const pending = !result || result.status === "processing";
+                    const errored = result && (result.error || result.status === "error");
+                    const isPositive = done ? this.finalChecked(canvas.id) : false;
+                    const isNegative = done ? !this.finalChecked(canvas.id) : false;
+                    const overridden = this.overrides.has(canvas.id);
+
+                    let include = true;
+                    switch (this.facet) {
+                        case "pos":
+                            include = done && isPositive;
+                            break;
+                        case "neg":
+                            include = done && isNegative;
+                            break;
+                        case "overridden":
+                            include = overridden;
+                            break;
+                        case "pending":
+                            include = pending;
+                            break;
+                        case "errors":
+                            include = Boolean(errored);
+                            break;
+                        default:
+                            include = true;
+                    }
+
+                    if (include) ids.add(canvas.id);
+                }
+
+                this.selectionIds = ids;
+
+                this.$nextTick(() => {
+                    const nextListWrap = this.$refs?.listWrap;
+                    if (nextListWrap && previousScrollTop !== null) {
+                        nextListWrap.scrollTop = previousScrollTop;
+                    }
+                });
+
+                if (!ids.size) return;
+                if (reason === "override") return;
+
+                if (reason === "classify") {
+                    if (this.facetDependsOnResults()) {
+                        this.queueMiradorRefresh(this.canvases[this.currentIndex]?.id);
+                    }
+                    return;
+                }
+
+                if (reason === "filter") {
+                    this.setFilteredManifestForSelection();
+                    const keepId = this.canvases[this.currentIndex]?.id;
+                    const targetId = keepId && this.selectionIds.has(keepId)
+                        ? keepId
+                        : (this.selection[0]?.id || null);
+
+                    this.initMirador(this.filteredManifestUrl);
+                    if (targetId) setTimeout(() => this.goMiradorToCanvas(targetId), 80);
+                    return;
+                }
+
+                const currentId = this.canvases[this.currentIndex]?.id;
+                const currentIsVisible = currentId && ids.has(currentId);
+
+                if (!keepCurrentIfPossible || !currentIsVisible) {
+                    const firstIndex = this.canvases.findIndex(canvas => ids.has(canvas.id));
+                    if (firstIndex >= 0) {
+                        this.currentIndex = firstIndex;
+                        this.goMiradorToCanvas(this.canvases[firstIndex].id);
+                    }
+                }
+            },
+
+            /**
+             * Resolves the first Mirador window ID.
+             *
+             * @returns {string|null} Mirador window ID.
+             */
+            resolveMiradorWindowId() {
+                try {
+                    const store = this.mirador?.store;
+                    if (!store) return null;
+
+                    const state = store.getState?.();
+                    const windows = state?.windows;
+                    if (!windows) return null;
+
+                    return Object.keys(windows)[0] || null;
+                } catch {
+                    return null;
+                }
+            },
+
+            /**
+             * Initializes Mirador with a manifest URL.
+             *
+             * @param {string} manifestUrl - Manifest URL.
+             */
+            initMirador(manifestUrl) {
+                const miradorNode = document.getElementById("mirador");
+                if (miradorNode) miradorNode.innerHTML = "";
+
+                this.mirador = Mirador.viewer({
+                    id: "mirador",
+                    windows: [{
+                        manifestId: manifestUrl,
+                        canvasId: null
+                    }],
+                    workspaceControlPanel: {enabled: false},
+                    window: {
+                        allowClose: false,
+                        allowFullscreen: true,
+                        allowMaximize: false,
+                        allowTopMenuButton: true,
+                        defaultSideBarPanel: "info",
+                        sideBarOpen: false
+                    }
+                });
+
+                this.miradorWindowId = null;
+
+                setTimeout(() => {
+                    this.miradorWindowId = this.resolveMiradorWindowId();
+
+                    if (this.pendingCanvasId) {
+                        const canvasId = this.pendingCanvasId;
+                        this.pendingCanvasId = null;
+                        this.goMiradorToCanvas(canvasId);
+                    }
+                }, 50);
+            },
+
+            /**
+             * Navigates Mirador to a canvas.
+             *
+             * @param {string} canvasId - Canvas ID.
+             */
+            goMiradorToCanvas(canvasId) {
+                if (!this.mirador || !canvasId) return;
+
+                const store = this.mirador.store;
+                if (!store) return;
+
+                if (!this.miradorWindowId) this.miradorWindowId = this.resolveMiradorWindowId();
+
+                if (!this.miradorWindowId) {
+                    this.pendingCanvasId = canvasId;
+                    setTimeout(() => this.goMiradorToCanvas(canvasId), 80);
+                    return;
+                }
+
+                try {
+                    store.dispatch({
+                        type: "mirador/SET_CANVAS",
+                        windowId: this.miradorWindowId,
+                        canvasId,
+                        visibleCanvases: [canvasId],
+                        preserveViewport: true
+                    });
+
+                    store.dispatch({
+                        type: "mirador/FOCUS_WINDOW",
+                        windowId: this.miradorWindowId
+                    });
+                } catch {
+                    this.pendingCanvasId = canvasId;
+                    setTimeout(() => this.goMiradorToCanvas(canvasId), 80);
+                }
+            },
+
+            /**
+             * Selects a canvas and opens it in Mirador.
+             *
+             * @param {object} canvas - Normalized canvas.
+             */
+            selectCanvas(canvas) {
+                this.currentIndex = canvas._index;
+                if (this.miradorCollapsed) this.miradorCollapsed = false;
+                this.goMiradorToCanvas(canvas.id);
+            },
+
+            /**
+             * Opens the first canvas in the current selection.
+             */
+            openFirstSelected() {
+                if (!this.selection.length) return;
+                this.selectCanvas(this.selection[0]);
+            },
+
+            /**
+             * Moves to the next or previous selected canvas.
+             *
+             * @param {number} delta - Direction.
+             */
+            goNextSelected(delta) {
+                if (!this.selection.length) return;
+
+                const currentId = this.canvases[this.currentIndex]?.id;
+                let position = this.selection.findIndex(canvas => canvas.id === currentId);
+                if (position < 0) position = 0;
+
+                position = (position + delta + this.selection.length) % this.selection.length;
+                this.selectCanvas(this.selection[position]);
+            },
+
+            /**
+             * Returns the positive-class score for a canvas.
+             *
+             * @param {string} canvasId - Canvas ID.
+             * @returns {number} Score between 0 and 1.
+             */
+            getPositiveScore(canvasId) {
+                const result = this.results.get(canvasId);
+                if (!result || result.error || result.status !== "done") return 0;
+                return Number(result.p_positive ?? 0);
+            },
+
+            /**
+             * Returns histogram bar style.
+             *
+             * @param {string} canvasId - Canvas ID.
+             * @returns {object} Style object.
+             */
+            sparkBarStyle(canvasId) {
+                const probability = this.getPositiveScore(canvasId);
+                return {height: `${Math.max(8, Math.round(probability * 100))}%`};
+            },
+
+            /**
+             * Returns probability bar style.
+             *
+             * @param {string} canvasId - Canvas ID.
+             * @returns {object} Style object.
+             */
+            probabilityFillStyle(canvasId) {
+                return {width: `${Math.round(this.getPositiveScore(canvasId) * 100)}%`};
+            },
+
+            /**
+             * Returns horizontal probability bar style.
+             *
+             * @param {number} probability - Probability.
+             * @returns {object} Style object.
+             */
+            horizontalProbabilityStyle(probability) {
+                return {width: `${Math.round(probability * 100)}%`};
+            },
+
+            /**
+             * Returns histogram tooltip.
+             *
+             * @param {object} canvas - Canvas.
+             * @returns {string} Tooltip.
+             */
+            sparkTitle(canvas) {
+                return `${canvas.label} — ${Math.round(this.getPositiveScore(canvas.id) * 100)}%`;
+            },
+
+            /**
+             * Returns histogram bar classes.
+             *
+             * @param {object} canvas - Canvas.
+             * @returns {object} Class object.
+             */
+            sparkBarClass(canvas) {
+                const isCurrent = canvas._index === this.currentIndex;
+                const result = this.results.get(canvas.id);
+                const done = result && result.status === "done" && !result.error;
+                const ok = done ? this.finalChecked(canvas.id) : false;
+
+                return {sel: isCurrent, ok, no: done && !ok};
+            },
+
+            /**
+             * Refreshes available model runs.
+             */
+            async refreshRuns() {
+                this.isBusy = true;
+                this.setStatus(this.t("statusLoadingRuns"), "loading");
+
+                try {
+                    if (this.appConfig.mode === "online") {
+                        const runs = this.appConfig.online?.runs || [];
+                        this.runs = runs.map(run => run.id);
+                        this.selectedRun = this.runs[0] || "";
+                        this.setStatus(`${this.t("statusOnlineRuns")}: ${runs.length}`, "success");
+                        return;
+                    }
+
+                    const abortController = new AbortController();
+                    const runs = await loadRunsIndex(this.artefactsBaseUrl, abortController.signal);
+
+                    this.runs = runs;
+                    this.selectedRun = runs[0] || "";
+                    this.setStatus(`${this.t("statusLocalRuns")}: ${runs.length}`, "success");
+                } catch (error) {
+                    console.warn(error);
+                    this.setStatus(`${this.t("statusRunsError")}: ${error.message || error}`, "error");
+                } finally {
+                    this.isBusy = false;
+                }
+            },
+
+            /**
+             * Builds a URL inside the selected run directory.
+             *
+             * @param {string} pathInRun - Relative path inside the run.
+             * @returns {string} Full URL.
+             */
+            runUrl(pathInRun) {
+                const base = (this.runBaseUrl || "").replace(/\/$/, "");
+                return `${base}/${pathInRun}`.replace(/%2F/g, "/");
+            },
+
+            /**
+             * Loads preprocessing config, inference config, and ONNX session.
+             */
+            async loadRun() {
+                if (!this.selectedRun) return;
+
+                if (this.appConfig.mode === "online") {
+                    const entry = (this.appConfig.online?.runs || []).find(run => run.id === this.selectedRun);
+
+                    if (!entry?.baseUrl) {
+                        this.setStatus(this.t("statusOnlineRunMissing"), "error");
+                        this.isBusy = false;
+                        return;
+                    }
+
+                    this.runBaseUrl = entry.baseUrl;
+                } else {
+                    const base = this.artefactsBaseUrl.replace(/\/$/, "");
+                    this.runBaseUrl = `${base}/${encodeURIComponent(this.selectedRun)}`.replace(/%2F/g, "/");
+                }
+
+                this.isBusy = true;
+                this.modelReady = false;
+                this.setStatus(this.t("statusLoadingModel"), "loading");
+
+                const abortController = new AbortController();
+
+                try {
+                    const preprocessUrl = withCacheBuster(this.runUrl("preprocess.json"));
+                    const inferUrl = withCacheBuster(this.runUrl("inference_config.json"));
+
+                    let preprocess = {};
+                    let inferCfg = {};
+
+                    try {
+                        preprocess = await fetchJsonOrThrow(preprocessUrl, abortController.signal, {noStore: true});
+                    } catch (error) {
+                        console.warn("Unable to load preprocess.json", preprocessUrl, error);
+                    }
+
+                    inferCfg = await fetchJsonOrThrow(inferUrl, abortController.signal, {noStore: true});
+
+                    const imgSize = Number(inferCfg.img_size ?? preprocess.img_size ?? 224);
+                    const cfg = {
+                        img_size: imgSize,
+                        resize_size: Number(inferCfg.resize_size ?? preprocess.resize_size ?? imgSize),
+                        preprocess_mode: inferCfg.preprocess_mode ?? preprocess.preprocess_mode ?? "resize_square",
+                        mean: inferCfg.mean ?? preprocess.mean ?? [0.485, 0.456, 0.406],
+                        std: inferCfg.std ?? preprocess.std ?? [0.229, 0.224, 0.225],
+                        threshold: Number(inferCfg.threshold ?? 0.5),
+                        labels: inferCfg.labels ?? preprocess.labels ?? [this.NEGATIVE_LABEL, this.POSITIVE_LABEL],
+                        positive_label: inferCfg.positive_label ?? this.POSITIVE_LABEL,
+                        negative_label: inferCfg.negative_label ?? this.NEGATIVE_LABEL,
+                        positive_index: Number(inferCfg.positive_index ?? 1),
+                        input_name: inferCfg.input_name ?? null,
+                        output_name: inferCfg.output_name ?? null,
+                        model_name: inferCfg.model_name ?? this.selectedRun
+                    };
+
+                    console.group(`[loadRun] ${this.appConfig.mode} / ${this.selectedRun}`);
+                    console.log("runBaseUrl =", this.runBaseUrl);
+                    console.log("preprocessUrl =", preprocessUrl);
+                    console.log("inferUrl =", inferUrl);
+                    console.log("preprocess =", preprocess);
+                    console.log("inferCfg =", inferCfg);
+                    console.log("resolved cfg =", cfg);
+                    console.groupEnd();
+
+                    this.preprocess = cfg;
+                    this.inferCfg = inferCfg;
+
+                    const thresholdPct = Math.round(Number(cfg.threshold ?? 0.5) * 100);
+
+                    this.optimalThresholdPct = thresholdPct;
+                    this.thresholdPct = thresholdPct;
+                    this.thresholdPctImage = thresholdPct;
+
+                    const candidates = [
+                        this.runUrl("onnx/model.onnx"),
+                        this.runUrl("classifier.int8.onnx"),
+                        this.runUrl("classifier.onnx")
+                    ];
+
+                    let modelUrl = null;
+                    for (const candidateUrl of candidates) {
+                        try {
+                            const response = await fetch(candidateUrl, {method: "GET", signal: abortController.signal});
+                            if (response.ok) {
+                                modelUrl = candidateUrl;
+                                break;
+                            }
+                        } catch {
+                            // try next candidate
+                        }
+                    }
+
+                    if (!modelUrl) throw new Error(this.t("errorModelNotFound"));
+
+                    this.sess = await ort.InferenceSession.create(modelUrl, {executionProviders: ["wasm"]});
+                    this.inputName = cfg.input_name || this.sess.inputNames[0];
+                    this.outputName = cfg.output_name || this.sess.outputNames[0];
+
+                    this.results = new Map();
+                    this.overrides = new Map();
+                    this.selectionIds = new Set();
+                    this.imageResult = null;
+                    this.imageOutput = "";
+                    this.modelReady = true;
+
+                    this.setStatus(
+                        `${this.t("statusModelLoaded")} ✅ run=${this.selectedRun} input=${this.inputName} threshold=${cfg.threshold.toFixed(6)} (${thresholdPct}%)`,
+                        "success"
+                    );
+                } catch (error) {
+                    console.error(error);
+                    this.setStatus(`${this.t("statusLoadRunError")}: ${error.message || error}`, "error");
+                    this.modelReady = false;
+                    this.sess = null;
+                    this.inputName = null;
+                    this.outputName = null;
+                } finally {
+                    this.isBusy = false;
+                }
+            },
+
+            /**
+             * Clears application state while preserving loaded model configuration.
+             */
+            clearAll() {
+                this.manifest = null;
+                this.canvases = [];
+                this.results = new Map();
+                this.selectionIds = new Set();
+                this.overrides = new Map();
+                this.progressVisible = false;
+                this.progressPct = 0;
+                this.progressText = "0 / 0";
+                this.isRunning = false;
+                this.abortController = null;
+                this.currentIndex = 0;
+
+                this.mirador = null;
+                this.miradorWindowId = null;
+                this.pendingCanvasId = null;
+
+                if (this.filteredManifestUrl) URL.revokeObjectURL(this.filteredManifestUrl);
+                this.filteredManifestUrl = null;
+                this.filteredManifestObj = null;
+
+                const miradorNode = document.getElementById("mirador");
+                if (miradorNode) miradorNode.innerHTML = "";
+
+                this.imageResult = null;
+                this.imageOutput = "";
+
+                this.setStatus(this.t("statusResetOk"), "success");
+            },
+
+            /**
+             * Loads and parses the IIIF manifest URL.
+             */
+            async loadManifest() {
+                if (!this.manifestUrl) return;
+
+                if (!this.modelReady) {
+                    this.setStatus(this.t("statusLoadModelFirst"), "error");
+                    return;
+                }
+
+                this.isBusy = true;
+                this.setStatus(this.t("statusLoadingManifest"), "loading");
+
+                const abortController = new AbortController();
+
+                try {
+                    const manifest = await fetchJsonOrThrow(this.manifestUrl.trim(), abortController.signal);
+                    this.manifest = manifest;
+
+                    const canvases = extractCanvases(manifest);
+                    canvases.forEach((canvas, index) => {
+                        canvas._index = index;
+                    });
+
+                    this.canvases = canvases;
+                    this.results = new Map();
+                    this.overrides = new Map();
+                    this.currentIndex = 0;
+
+                    this.applySelection(false);
+                    this.setFilteredManifestForSelection();
+                    this.initMirador(this.filteredManifestUrl);
+
+                    if (this.canvases[0]) this.goMiradorToCanvas(this.canvases[0].id);
+
+                    this.setStatus(`${this.t("statusManifestLoaded")} ✅ (${canvases.length} ${this.t("pages")})`, "success");
+                } catch (error) {
+                    console.error(error);
+                    this.setStatus(`${this.t("statusManifestError")}: ${error.message || error}`, "error");
+
+                    this.manifest = null;
+                    this.canvases = [];
+                    this.results = new Map();
+                    this.selectionIds = new Set();
+                } finally {
+                    this.isBusy = false;
+                }
+            },
+
+            /**
+             * Resets both IIIF and local-image thresholds to the model optimal threshold.
+             *
+             * The optimal threshold is loaded from inference_config.json when the model
+             * is loaded. After reset, the current IIIF selection is recomputed.
+             */
+            resetThresholdToOptimal() {
+                this.thresholdPct = this.optimalThresholdPct;
+                this.thresholdPctImage = this.optimalThresholdPct;
+                this.applySelection(true, "filter");
+            },
+
+            /**
+             * Handles image drag-and-drop.
+             *
+             * @param {DragEvent} event - Drop event.
+             */
+            onImageDrop(event) {
+                this.dragOverImage = false;
+
+                if (!this.modelReady || this.isBusy) {
+                    this.setStatus(this.t("statusLoadModelBeforeImage"), "error");
+                    return;
+                }
+
+                const files = event.dataTransfer?.files;
+                if (!files || !files.length) return;
+
+                const file = files[0];
+                if (!file.type.startsWith("image/")) {
+                    this.setStatus(this.t("statusDroppedFileNotImage"), "error");
+                    return;
+                }
+
+                this.setImageFile(file);
+            },
+
+            /**
+             * Builds a minimal IIIF Presentation API v3 manifest from selected canvases.
+             *
+             * @param {object[]} selectedCanvases - Canvases to include.
+             * @returns {object} IIIF v3 manifest.
+             */
+            buildFilteredManifestV3(selectedCanvases) {
+                const source = this.manifest || {};
+                const sourceLabel = source.label || {none: ["Selection"]};
+                const sourceSummary = source.summary || undefined;
+                const provenance = this.getModelProvenance();
+                const exportDate = new Date().toISOString();
+
+                const canvasesV3 = selectedCanvases.map(canvas => {
+                    const body = this.makeImageBody(canvas);
+                    const machineAnnotationPage = this.buildMachineAnnotationPage(canvas, exportDate);
+
+                    const canvasV3 = {
+                        id: canvas.id,
+                        type: "Canvas",
+                        label: typeof canvas.label === "string"
+                            ? {none: [canvas.label]}
+                            : (canvas.label || {none: ["Canvas"]}),
+                        width: canvas.width ?? body.width ?? 1000,
+                        height: canvas.height ?? body.height ?? 1000,
+                        items: [{
+                            id: `${canvas.id}#page`,
+                            type: "AnnotationPage",
+                            items: [{
+                                id: `${canvas.id}#painting`,
+                                type: "Annotation",
+                                motivation: "painting",
+                                target: canvas.id,
+                                body
+                            }]
+                        }]
+                    };
+
+                    if (machineAnnotationPage) canvasV3.annotations = [machineAnnotationPage];
+
+                    return canvasV3;
+                });
+
+                return {
+                    "@context": "http://iiif.io/api/presentation/3/context.json",
+                    id: `urn:uuid:${crypto.randomUUID()}`,
+                    type: "Manifest",
+                    label: sourceLabel,
+                    summary: sourceSummary,
+                    metadata: [
+                        {label: {none: ["Enrichment task"]}, value: {none: ["classification"]}},
+                        {label: {none: ["Model"]}, value: {none: [provenance.run || "unknown"]}},
+                        {label: {none: ["Model source"]}, value: {none: [provenance.source]}},
+                        {label: {none: ["Model URL"]}, value: {none: [provenance.url || ""]}},
+                        {label: {none: ["Export date"]}, value: {none: [exportDate]}}
+                    ],
+                    items: canvasesV3
+                };
+            },
+
+            /**
+             * Builds an IIIF image body for a canvas.
+             *
+             * @param {object} canvas - Normalized canvas.
+             * @returns {object} IIIF Image body.
+             */
+            makeImageBody(canvas) {
+                if (canvas.serviceUrl) {
+                    return {
+                        id: `${canvas.serviceUrl}/full/full/0/default.jpg`,
+                        type: "Image",
+                        format: "image/jpeg",
+                        width: canvas.imgW ?? canvas.width ?? undefined,
+                        height: canvas.imgH ?? canvas.height ?? undefined,
+                        service: [{
+                            id: canvas.serviceUrl,
+                            type: "ImageService2",
+                            profile: "http://iiif.io/api/image/2/level2.json"
+                        }]
+                    };
+                }
+
+                return {
+                    id: canvas.imageUrl || canvas.thumb,
+                    type: "Image",
+                    format: canvas.format || "image/jpeg",
+                    width: canvas.imgW ?? canvas.width ?? undefined,
+                    height: canvas.imgH ?? canvas.height ?? undefined
+                };
+            },
+
+            /**
+             * Updates the blob manifest used by Mirador and export.
+             */
+            setFilteredManifestForSelection() {
+                if (this.filteredManifestUrl) {
+                    URL.revokeObjectURL(this.filteredManifestUrl);
+                    this.filteredManifestUrl = null;
+                }
+
+                const manifest = this.buildFilteredManifestV3(this.selection);
+                this.filteredManifestObj = manifest;
+
+                const blob = new Blob([JSON.stringify(manifest, null, 2)], {
+                    type: "application/json;charset=utf-8"
+                });
+
+                this.filteredManifestUrl = URL.createObjectURL(blob);
+            },
+
+            /**
+             * Computes the positive class index from labels and aliases.
+             *
+             * @returns {number} Positive class index.
+             */
+            computePositiveIndex() {
+                const labels = Array.isArray(this.preprocess?.labels)
+                    ? this.preprocess.labels
+                    : [this.NEGATIVE_LABEL, this.POSITIVE_LABEL];
+
+                const aliases = [
+                    this.preprocess?.positive_label,
+                    this.POSITIVE_LABEL,
+                    ...(this.appConfig.labels?.positiveAliases || []),
+                    "1"
+                ].filter(Boolean);
+
+                for (const alias of aliases) {
+                    const index = labels.indexOf(alias);
+                    if (index >= 0) return index;
+                }
+
+                return Number(this.preprocess?.positive_index ?? 1);
+            },
+
+            /**
+             * Computes the negative class index from labels and aliases.
+             *
+             * @returns {number} Negative class index.
+             */
+            computeNegativeIndex() {
+                const labels = Array.isArray(this.preprocess?.labels)
+                    ? this.preprocess.labels
+                    : [this.NEGATIVE_LABEL, this.POSITIVE_LABEL];
+
+                const aliases = [
+                    this.preprocess?.negative_label,
+                    this.NEGATIVE_LABEL,
+                    ...(this.appConfig.labels?.negativeAliases || []),
+                    "0"
+                ].filter(Boolean);
+
+                for (const alias of aliases) {
+                    const index = labels.indexOf(alias);
+                    if (index >= 0) return index;
+                }
+
+                const positiveIndex = this.computePositiveIndex();
+                return labels.length === 2 ? 1 - positiveIndex : 0;
+            },
+
+            /**
+             * Runs model inference on an HTML image element.
+             *
+             * @param {HTMLImageElement} imageElement - Image element.
+             * @returns {Promise<{logits: number[], probs: number[]}>} Inference outputs.
+             */
+            async inferImageElement(imageElement) {
+                if (!this.sess) throw new Error("ONNX session is not loaded.");
+
+                const input = imageToTensor(imageElement, this.preprocess);
+                const inputName = this.inputName || this.sess.inputNames[0];
+                const results = await this.sess.run({[inputName]: input});
+                const outputName = this.outputName || this.sess.outputNames[0];
+                const logits = Array.from(results[outputName].data);
+                const probs = softmax(logits);
+
+                return {logits, probs};
+            },
+
+            /**
+             * Classifies one IIIF canvas.
+             *
+             * @param {object} canvas - Normalized canvas.
+             * @returns {Promise<object>} Classification result.
+             */
+            async classifyCanvasOne(canvas) {
+                if (this.labelMatchesForceNegative(canvas.label)) {
+                    return {
+                        status: "done",
+                        p_positive: 0.0,
+                        checked: false,
+                        skipped: true,
+                        skipped_reason: "heuristic_force_negative"
+                    };
+                }
+
+                const imageUrl = await bestImageUrlForInference(canvas, 250);
+                if (!imageUrl) throw new Error(this.t("errorNoCanvasImageUrl"));
+
+                const response = await fetch(imageUrl, {signal: this.abortController?.signal});
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const blob = await response.blob();
+                const objectUrl = URL.createObjectURL(blob);
+
+                try {
+                    const image = new Image();
+                    image.crossOrigin = "anonymous";
+                    image.src = objectUrl;
+
+                    await new Promise((resolve, reject) => {
+                        image.onload = resolve;
+                        image.onerror = reject;
+                    });
+
+                    const {logits, probs} = await this.inferImageElement(image);
+                    const positiveIndex = this.computePositiveIndex();
+                    const pPositive = Number(probs[positiveIndex] ?? 0);
+
+                    return {
+                        status: "done",
+                        p_positive: pPositive,
+                        checked: pPositive >= this.threshold,
+                        logits,
+                        probs
+                    };
+                } finally {
+                    URL.revokeObjectURL(objectUrl);
+                }
+            },
+
+            /**
+             * Classifies all canvases with limited concurrency.
+             */
+            async classifyAll() {
+                if (!this.modelReady || !this.sess) {
+                    this.setStatus(this.t("statusLoadModelFirst"), "error");
+                    return;
+                }
+
+                if (!this.canvases.length) {
+                    this.setStatus(this.t("statusLoadManifestFirst"), "error");
+                    return;
+                }
+
+                const concurrency = Math.max(1, Math.min(20, Number(this.classificationConcurrency) || 1));
+                this.isRunning = true;
+                this.isBusy = true;
+                this.progressVisible = true;
+                this.progressPct = 0;
+                this.progressText = `0 / ${this.canvases.length}`;
+                this.setStatus(`${this.t("statusClassificationRunning")} (${concurrency} ${this.t("parallelSuffix")})`, "loading");
+                this.abortController = new AbortController();
+
+                let done = 0;
+                const total = this.canvases.length;
+
+                const updateProgress = () => {
+                    this.progressPct = Math.round((done / total) * 100);
+                    this.progressText = `${done} / ${total}`;
+                };
+
+                try {
+                    for (let start = 0; start < this.canvases.length; start += concurrency) {
+                        if (this.abortController.signal.aborted) break;
+
+                        const batch = this.canvases.slice(start, start + concurrency);
+
+                        for (const canvas of batch) {
+                            this.results.set(canvas.id, {status: "processing"});
+                        }
+
+                        this.applySelection(true, "classify");
+
+                        const batchResults = await Promise.allSettled(batch.map(async canvas => {
+                            if (this.abortController.signal.aborted) return {canvas, skippedByAbort: true};
+
+                            try {
+                                return {canvas, result: await this.classifyCanvasOne(canvas)};
+                            } catch (error) {
+                                return {
+                                    canvas,
+                                    result: {status: "error", error: error?.message || String(error)}
+                                };
+                            }
+                        }));
+
+                        for (const item of batchResults) {
+                            if (item.status !== "fulfilled") {
+                                done++;
+                                continue;
+                            }
+
+                            const {canvas, result, skippedByAbort} = item.value;
+                            if (!skippedByAbort) {
+                                this.results.set(canvas.id, result);
+                                done++;
+                            }
+                        }
+
+                        updateProgress();
+                        this.applySelection(true, "classify");
+                    }
+
+                    const positives = [...this.results.entries()]
+                        .filter(([id, result]) => result && result.status === "done" && !result.error && this.finalChecked(id))
+                        .length;
+
+                    const statusMessage = this.abortController.signal.aborted
+                        ? `${this.t("statusStopped")} ✅ (${done}/${total}) — ${this.t("positivesAtThreshold")}: ${positives}`
+                        : `${this.t("statusDone")} ✅ — ${this.t("positivesAtThreshold")}: ${positives}`;
+
+                    this.setStatus(statusMessage, "success");
+                } finally {
+                    this.isRunning = false;
+                    this.isBusy = false;
+                }
+            },
+
+            /**
+             * Requests cancellation of the current classification run.
+             */
+            stop() {
+                if (this.abortController) this.abortController.abort();
+                this.isRunning = false;
+                this.isBusy = false;
+                this.setStatus(this.t("statusStopRequested"), "error");
+            },
+
+            /**
+             * Returns a human-readable processing status.
+             *
+             * @param {string} canvasId - Canvas ID.
+             * @returns {string} Status text.
+             */
+            itemStatusText(canvasId) {
+                const result = this.results.get(canvasId);
+
+                if (!result) return this.t("statusPending");
+                if (result.error) return this.t("statusError");
+                if (result.status === "processing") return this.t("statusProcessing");
+                if (result.skipped) return this.t("heuristicSkipped");
+                if (result.status === "done") {
+                    return `${this.scoreLabel}=${Math.round((result.p_positive ?? 0) * 100)}%`;
+                }
+
+                return "…";
+            },
+
+            /**
+             * Downloads the currently filtered IIIF manifest.
+             */
+            exportSelection() {
+                this.setFilteredManifestForSelection();
+
+                const manifest = this.filteredManifestObj;
+                const blob = new Blob([JSON.stringify(manifest, null, 2)], {
+                    type: "application/json;charset=utf-8"
+                });
+
+                const url = URL.createObjectURL(blob);
+                const anchor = document.createElement("a");
+
+                anchor.href = url;
+                anchor.download = `iiif_manifest_filtered_${this.facet}_${this.selectedRun || "run"}.json`;
+                anchor.click();
+
+                URL.revokeObjectURL(url);
+
+                this.setStatus(`${this.t("statusExportOk")} ✅ (${manifest.items?.length || 0} canvases)`, "success");
+            },
+
+            /**
+             * Stores an image file and creates a preview URL.
+             *
+             * @param {File} file - Image file.
+             */
+            setImageFile(file) {
+                this.imageFile = file;
+
+                if (this.imagePreviewUrl) URL.revokeObjectURL(this.imagePreviewUrl);
+
+                this.imagePreviewUrl = URL.createObjectURL(file);
+                this.imageOutput = "";
+                this.imageResult = null;
+
+                this.setStatus(`${this.t("statusImageLoaded")}: ${file.name}`, "success");
+            },
+
+            /**
+             * Handles file picker changes.
+             *
+             * @param {Event} event - Change event.
+             */
+            onFile(event) {
+                const file = event.target.files?.[0];
+                if (!file) return;
+
+                if (!file.type.startsWith("image/")) {
+                    this.setStatus(this.t("statusSelectedFileNotImage"), "error");
+                    return;
+                }
+
+                this.setImageFile(file);
+            },
+
+            /**
+             * Clears local image state.
+             */
+            clearImage() {
+                if (this.imagePreviewUrl) URL.revokeObjectURL(this.imagePreviewUrl);
+
+                this.imageFile = null;
+                this.imagePreviewUrl = "";
+                this.imageOutput = "";
+                this.imageResult = null;
+            },
+
+            /**
+             * Removes query string and hash from a URL.
+             *
+             * @param {string|null} url - Raw URL.
+             * @returns {string|null} Clean URL.
+             */
+            cleanUrl(url) {
+                if (!url) return null;
+
+                try {
+                    const parsed = new URL(url, window.location.href);
+                    parsed.search = "";
+                    parsed.hash = "";
+                    return parsed.toString().replace(/\/$/, "");
+                } catch {
+                    return String(url).split("?")[0].split("#")[0].replace(/\/$/, "");
+                }
+            },
+
+            /**
+             * Converts a Hugging Face file URL to a stable repository URL when possible.
+             *
+             * @param {string|null} url - Hugging Face or generic URL.
+             * @returns {string|null} Stable URL.
+             */
+            toStableHuggingFaceRepoUrl(url) {
+                if (!url) return null;
+
+                const clean = this.cleanUrl(url);
+                if (!clean) return null;
+
+                try {
+                    const parsed = new URL(clean);
+
+                    if (parsed.hostname !== "huggingface.co") return clean;
+
+                    const parts = parsed.pathname.split("/").filter(Boolean);
+
+                    if (parts[0] === "datasets" && parts.length >= 3) {
+                        return `${parsed.origin}/datasets/${parts[1]}/${parts[2]}`;
+                    }
+
+                    if (parts[0] === "spaces" && parts.length >= 3) {
+                        return `${parsed.origin}/spaces/${parts[1]}/${parts[2]}`;
+                    }
+
+                    if (parts.length >= 2) return `${parsed.origin}/${parts[0]}/${parts[1]}`;
+
+                    return clean;
+                } catch {
+                    return clean;
+                }
+            },
+
+            /**
+             * Returns current model provenance.
+             *
+             * @returns {{source: string, url: string|null, run: string|null}} Provenance.
+             */
+            getModelProvenance() {
+                if (this.appConfig.mode === "online") {
+                    const entry = (this.appConfig.online?.runs || []).find(run => run.id === this.selectedRun);
+
+                    const stableRepoUrl =
+                        this.HF_REPO_URL ||
+                        this.appConfig.online?.huggingFaceRepoURL ||
+                        entry?.repoUrl ||
+                        entry?.repositoryUrl ||
+                        entry?.modelUrl ||
+                        this.toStableHuggingFaceRepoUrl(entry?.baseUrl || this.runBaseUrl);
+
+                    return {
+                        source: "huggingface",
+                        url: this.toStableHuggingFaceRepoUrl(stableRepoUrl),
+                        run: this.selectedRun || null
+                    };
+                }
+
+                return {
+                    source: "local",
+                    url: this.cleanUrl(this.runBaseUrl),
+                    run: this.selectedRun || null
+                };
+            },
+
+            /**
+             * Builds a reusable machine-generated annotation payload.
+             *
+             * @param {object} params - Payload parameters.
+             * @returns {object} Payload.
+             */
+            buildMachinePayload({task, type, data, date}) {
+                const provenance = this.getModelProvenance();
+
+                return {
+                    type,
+                    task,
+                    model: provenance.run,
+                    model_source: provenance.source,
+                    model_url: provenance.url,
+                    date,
+                    data
+                };
+            },
+
+            /**
+             * Builds one IIIF machine annotation.
+             *
+             * @param {object} canvas - Canvas.
+             * @param {object} params - Annotation parameters.
+             * @returns {object} IIIF Annotation.
+             */
+            buildMachineAnnotation(canvas, {task, motivation, payload}) {
+                return {
+                    id: `${canvas.id}#machine-annotation-${task}`,
+                    type: "Annotation",
+                    motivation,
+                    target: canvas.id,
+                    body: {
+                        type: "TextualBody",
+                        format: "application/json",
+                        value: JSON.stringify(payload)
+                    }
+                };
+            },
+
+            /**
+             * Builds a machine annotation page for a canvas.
+             *
+             * @param {object} canvas - Canvas.
+             * @param {string} exportDate - ISO export date.
+             * @returns {object|null} AnnotationPage or null.
+             */
+            buildMachineAnnotationPage(canvas, exportDate) {
+                const items = [];
+                const result = this.results.get(canvas.id);
+
+                if (result && result.status === "done" && !result.error) {
+                    const finalIsPositive = this.finalChecked(canvas.id);
+                    const prediction = finalIsPositive ? this.POSITIVE_LABEL : this.NEGATIVE_LABEL;
+                    const score = Number(result.p_positive ?? 0);
+
+                    const classificationPayload = this.buildMachinePayload({
+                        task: "classification",
+                        type: "ImageClassificationResult",
+                        date: exportDate,
+                        data: {
+                            prediction,
+                            score,
+                            score_label: this.POSITIVE_LABEL,
+                            threshold: Number(this.threshold),
+                            skipped: Boolean(result.skipped),
+                            skipped_reason: result.skipped_reason || null
+                        }
+                    });
+
+                    items.push(this.buildMachineAnnotation(canvas, {
+                        task: "classification",
+                        motivation: "classifying",
+                        payload: classificationPayload
+                    }));
+                }
+
+                if (!items.length) return null;
+
+                return {
+                    id: `${canvas.id}#machine-annotations`,
+                    type: "AnnotationPage",
+                    label: {none: ["Machine-generated annotations"]},
+                    items
+                };
+            },
+
+            /**
+             * Runs prediction on the selected local image.
+             */
+            async predictImage() {
+                if (!this.imageFile || !this.sess) return;
+
+                this.isBusy = true;
+                this.setStatus(this.t("statusImageInference"), "loading");
+
+                try {
+                    const objectUrl = URL.createObjectURL(this.imageFile);
+                    const image = new Image();
+                    image.crossOrigin = "anonymous";
+                    image.src = objectUrl;
+
+                    await new Promise((resolve, reject) => {
+                        image.onload = resolve;
+                        image.onerror = reject;
+                    });
+
+                    const {logits, probs} = await this.inferImageElement(image);
+                    URL.revokeObjectURL(objectUrl);
+
+                    const positiveIndex = this.computePositiveIndex();
+                    const pPositive = Number(probs[positiveIndex] ?? 0);
+                    const threshold = this.thresholdImage;
+                    const pred = pPositive >= threshold ? this.POSITIVE_LABEL : this.NEGATIVE_LABEL;
+
+                    const labels = Array.isArray(this.preprocess?.labels)
+                        ? this.preprocess.labels
+                        : probs.map((_, index) => `${this.t("classLabelPrefix")}_${index}`);
+
+                    this.imageResult = {
+                        pred,
+                        p_positive: pPositive,
+                        probs,
+                        logits,
+                        labels
+                    };
+
+                    this.imageOutput = JSON.stringify({
+                        run: this.selectedRun,
+                        pred,
+                        p_positive: pPositive,
+                        threshold,
+                        probs,
+                        logits,
+                        labels,
+                        preprocess: {
+                            img_size: this.preprocess.img_size,
+                            resize_size: this.preprocess.resize_size,
+                            preprocess_mode: this.preprocess.preprocess_mode,
+                            mean: this.preprocess.mean,
+                            std: this.preprocess.std
+                        }
+                    }, null, 2);
+
+                    this.setStatus(
+                        `${this.t("statusImageDone")} ✅ — ${pred} (${this.scoreLabel}=${(pPositive * 100).toFixed(1)}%)`,
+                        "success"
+                    );
+                } catch (error) {
+                    console.error(error);
+                    this.setStatus(`${this.t("statusPredictionError")}: ${error.message || error}`, "error");
+                } finally {
+                    this.isBusy = false;
+                }
+            }
+        },
+
+        /**
+         * Initializes configuration and model list.
+         */
+        async mounted() {
+            this.appConfig = await loadAppConfig();
+
+            document.title = this.appConfig.ui?.title || DEFAULT_CONFIG.ui.title;
+
+            this.headerDescriptionOpen = !(this.appConfig.ui?.descriptionCollapsedByDefault ?? true);
+            this.IIIF_LOGO_URL = this.appConfig.assets?.iiifLogoUrl || DEFAULT_CONFIG.assets.iiifLogoUrl;
+            this.PROJECT_LOGO_URL =
+                this.appConfig.project?.logoUrl ||
+                this.appConfig.assets?.projectLogoUrl ||
+                DEFAULT_CONFIG.assets.projectLogoUrl;
+
+            this.POSITIVE_LABEL = this.appConfig.labels?.positive || DEFAULT_CONFIG.labels.positive;
+            this.NEGATIVE_LABEL = this.appConfig.labels?.negative || DEFAULT_CONFIG.labels.negative;
+
+            this.manifestUrl = this.appConfig.ui?.defaultManifestUrl || "";
+            this.heuristicEnabled = this.appConfig.heuristic?.enabled ?? true;
+            this.heuristicPanelOpen = !(this.appConfig.heuristic?.collapsedByDefault ?? true);
+            this.heuristicKeywordsText = (this.appConfig.heuristic?.keywordsForceNegative || []).join("\n");
+
+            if (this.appConfig.mode === "online") {
+                this.appConfig.ui.showHelp = false;
+                this.appConfig.ui.showArtefactsInput = false;
+                this.HF_REPO_LABEL = this.appConfig.online?.huggingFaceRepoLabel || "";
+                this.HF_REPO_URL = this.appConfig.online?.huggingFaceRepoURL || "";
+            } else {
+                this.appConfig.ui.showHelp = this.appConfig.ui.showHelp ?? true;
+                this.appConfig.ui.showArtefactsInput = this.appConfig.ui.showArtefactsInput ?? true;
+                this.artefactsBaseUrl = this.appConfig.local?.defaultArtefactsBaseUrl || DEFAULT_CONFIG.local.defaultArtefactsBaseUrl;
+                this.HF_REPO_LABEL = "";
+                this.HF_REPO_URL = "";
+            }
+
+            this.setStatus(this.t("statusReady"), "");
+            await this.refreshRuns();
+        }
+    }).mount("#app");
+</script>
+</body>
+</html>
