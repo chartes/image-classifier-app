@@ -1,12 +1,14 @@
 # Image Classifier Application
 
+![Vue.js](https://img.shields.io/badge/vuejs-%2335495e.svg?style=for-the-badge&logo=vuedotjs&logoColor=%234FC08D)
+
 A lightweight static web application for running image classifiers on IIIF manifests or local images directly in the browser.
 
 The application loads ONNX image-classification models, applies the corresponding preprocessing configuration, classifies IIIF canvases, and lets users export a filtered IIIF manifest containing the selected images and machine-generated annotations.
 
 ## Try a demo 
 
-Test this app with a demo app on [![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-online-brightgreen?logo=github)]()
+Test this app with a demo app on [![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-online-brightgreen?logo=github)](https://chartes.github.io/image-classifier-app/)
 
 ## Features
 
