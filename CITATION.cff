@@ -1,0 +1,43 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata from this file."
+title: "Image Classifier Application"
+abstract: >
+  A lightweight static web application for running ONNX image classifiers on
+  IIIF manifests or local images directly in the browser. The application
+  supports IIIF canvas classification, threshold adjustment, manual correction,
+  heuristic filtering, and export of filtered IIIF Presentation API v3 manifests
+  with machine-generated annotations.
+type: software
+authors:
+  - family-names: Terriel
+    given-names: Lucas
+    orcid: "https://orcid.org/0000-0002-9189-258X"
+    affiliation: "École nationale des chartes – PSL"
+repository-code: "https://github.com/chartes/image-classifier-app"
+url: "https://github.com/chartes/image-classifier-app"
+license: MIT
+keywords:
+  - IIIF
+  - image classification
+  - ONNX
+  - ONNX Runtime Web
+  - static web application
+  - digital humanities
+  - cultural heritage
+  - browser inference
+  - machine-generated annotations
+version: "0.1.0"
+date-released: "2026-01-01"
+preferred-citation:
+  type: software
+  title: "Image Classifier Application"
+  authors:
+    - family-names: Terriel
+      given-names: Lucas
+      orcid: "https://orcid.org/0000-0002-9189-258X"
+      affiliation: "École nationale des chartes – PSL"
+  repository-code: "https://github.com/chartes/image-classifier-app"
+  url: "https://github.com/chartes/image-classifier-app"
+  license: MIT
+  version: "0.1.0"
+  date-released: "2026-05-22"
